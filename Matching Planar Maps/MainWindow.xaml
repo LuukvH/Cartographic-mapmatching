@@ -7,11 +7,23 @@
         mc:Ignorable="d"
         Title="MainWindow" Height="350" Width="525">
     <Grid>
-        <Canvas x:Name="canvas" HorizontalAlignment="Left" Height="321" VerticalAlignment="Top" Width="313" Margin="0,0,0,-0.2">
-            <Canvas.LayoutTransform>
-                <ScaleTransform ScaleX="1" ScaleY="-1" CenterX=".5" CenterY=".5" />
-            </Canvas.LayoutTransform>
-        </Canvas>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="0.5*"></ColumnDefinition>
+            <ColumnDefinition Width="0.5*"></ColumnDefinition>
+        </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*"></RowDefinition>
+            <RowDefinition Height="50"></RowDefinition>
+        </Grid.RowDefinitions>
+        <Canvas x:Name="canvas" Grid.Column="0" Grid.Row="0" Background="white" MouseLeftButtonDown="canvas_MouseLeftButtonDown" />
+        <StackPanel x:Name="freeSpaceStack" Grid.Column="1" Grid.Row="0" Margin="0,50,0,0" >
+            <StackPanel.Resources>
+                <Style TargetType="{x:Type Canvas}">
+                    <Setter Property="Margin" Value="0,10,0,0"/>
+                </Style>
+            </StackPanel.Resources>
+        </StackPanel>
+        <Slider x:Name="slider" Value="42" Grid.Row="1" VerticalAlignment="Top" Grid.ColumnSpan="2" Width="362" ValueChanged="slider_ValueChanged" Maximum="500" TickFrequency="10"/>
 
     </Grid>
 </Window>

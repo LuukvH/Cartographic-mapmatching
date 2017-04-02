@@ -21,5 +21,20 @@ namespace Matching_Planar_Maps
             X = x;
             Y = y;
         }
+
+        public static Vertex operator *(Vertex v1, float c)
+        {
+            return new Vertex(v1.X * c, v1.Y * c); 
+        }
+
+        public static Vertex operator +(Vertex v1, Vertex v2)
+        {
+            return new Vertex(v1.X + v2.X, v1.Y + v2.Y);
+        }
+
+        public static Vertex operator -(Vertex v1, Vertex v2)
+        {
+            return new Vertex(v1.X - v2.X, v1.Y - v2.Y);
+        }
     }
 }

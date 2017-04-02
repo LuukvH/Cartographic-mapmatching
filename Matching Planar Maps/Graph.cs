@@ -9,7 +9,7 @@ namespace Matching_Planar_Maps
     public class Graph
     {
         public List<Vertex> V = new List<Vertex>();
-        public Dictionary<Vertex, Vertex> E = new Dictionary<Vertex, Vertex>();
+        public List<Edge> E = new List<Edge>();
 
     }
 }

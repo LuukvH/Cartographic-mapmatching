@@ -55,8 +55,10 @@
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </ApplicationDefinition>
-    <Compile Include="FSD.cs" />
-    <Compile Include="Test.cs" />
+    <Compile Include="Edge.cs" />
+    <Compile Include="FSCell.cs" />
+    <Compile Include="GraphFunctions.cs" />
+    <Compile Include="Interval.cs" />
     <Compile Include="Vertex.cs" />
     <Page Include="MainWindow.xaml">
       <Generator>MSBuild:Compile</Generator>
