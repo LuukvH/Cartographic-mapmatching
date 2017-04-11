@@ -10,6 +10,5 @@ namespace Matching_Planar_Maps
     {
         public List<Vertex> V = new List<Vertex>();
         public List<Edge> E = new List<Edge>();
-
     }
 }

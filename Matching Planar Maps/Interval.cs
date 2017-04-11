@@ -22,6 +22,10 @@ namespace Matching_Planar_Maps
             End = y > 1 ? 1 : y;
         }
 
+        public int PathIndex { get; set; }
+
+        public int GraphIndex { get; set; }
+
         public float Start
         {
             get {  return start; }

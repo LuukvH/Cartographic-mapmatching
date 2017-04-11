@@ -16,14 +16,17 @@
             <RowDefinition Height="50"></RowDefinition>
         </Grid.RowDefinitions>
         <Canvas x:Name="canvas" Grid.Column="0" Grid.Row="0" Background="white" MouseLeftButtonDown="canvas_MouseLeftButtonDown" />
-        <StackPanel x:Name="freeSpaceStack" Grid.Column="1" Grid.Row="0" Margin="0,50,0,0" >
+        <ScrollViewer Grid.Column="1" Grid.Row="0" VerticalScrollBarVisibility="Auto">
+        <StackPanel x:Name="freeSpaceStack"  Margin="0,50,0,0" >
             <StackPanel.Resources>
                 <Style TargetType="{x:Type Canvas}">
                     <Setter Property="Margin" Value="0,10,0,0"/>
                 </Style>
             </StackPanel.Resources>
         </StackPanel>
+            </ScrollViewer>
         <Slider x:Name="slider" Value="42" Grid.Row="1" VerticalAlignment="Top" Grid.ColumnSpan="2" Width="362" ValueChanged="slider_ValueChanged" Maximum="500" TickFrequency="10"/>
+        <Button x:Name="button" Content="Grid" HorizontalAlignment="Left" Margin="10,20.8,0,0" Grid.Row="1" VerticalAlignment="Top" Width="75" Click="button_Click"/>
 
     </Grid>
 </Window>
