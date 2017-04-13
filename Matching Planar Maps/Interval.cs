@@ -26,6 +26,8 @@ namespace Matching_Planar_Maps
 
         public int GraphIndex { get; set; }
 
+        public Interval PathPointer { get; set; }
+
         public float Start
         {
             get {  return start; }

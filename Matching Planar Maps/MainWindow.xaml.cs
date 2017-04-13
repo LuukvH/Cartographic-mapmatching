@@ -24,7 +24,7 @@ namespace Matching_Planar_Maps
         private Graph graph;
         private Graph path;
 
-        private const float PRECISION = 0.0000001f;
+        private const float TOLERANCE = 0.0000001f;
 
         public float epsilon { get; set; } = 50;
 
@@ -35,6 +35,8 @@ namespace Matching_Planar_Maps
 
         private float[,] leftPointers;
         private float[,] rightPointers;
+
+        private Boolean initialized = false;
 
         public MainWindow()
         {
@@ -52,14 +54,14 @@ namespace Matching_Planar_Maps
             Vertex v1 = new Vertex(20, 20);
             Vertex v2 = new Vertex(80, 80);
             Vertex v3 = new Vertex(110, 30);
-            Vertex v4 = new Vertex(210, 50);
+            Vertex v4 = new Vertex(150, 50);
             Vertex v5 = new Vertex(240, 80);
             graph.V.Add(v1);
             graph.V.Add(v2);
             graph.V.Add(v3);
             graph.V.Add(v4);
-            //graph.E.Add(new Edge(v1, v2));
-            //graph.E.Add(new Edge(v2, v3));
+            graph.E.Add(new Edge(v1, v2));
+            graph.E.Add(new Edge(v2, v3));
             graph.E.Add(new Edge(v3, v4));
             //graph.E.Add(new Edge(v2, v5));
 
@@ -81,9 +83,11 @@ namespace Matching_Planar_Maps
             Draw(path, Brushes.GreenYellow);
         }
 
+        private Ellipse sizeIndicator = null;
         public void Calc()
         {
-            DrawCircle(path.V[1], epsilon, Brushes.Chocolate);
+            canvas.Children.Remove(sizeIndicator);
+            sizeIndicator = DrawCircle(path.V[1], epsilon, Brushes.Chocolate);
 
             L = new Interval[path.E.Count, graph.E.Count];
             Lp = new Interval[path.E.Count, graph.E.Count];
@@ -103,7 +107,7 @@ namespace Matching_Planar_Maps
             }
 
 
-            int steps = 200;
+            int steps = 100;
             double Size = 100;
 
             freeSpaceStack.Children.Clear();
@@ -126,7 +130,8 @@ namespace Matching_Planar_Maps
                         float loc = ((1f / steps) * i);
 
                         Interval interval = CalculateInterval(e, e2, loc, epsilon);
-                        if (interval.Start < interval.End)
+                        //Console.WriteLine(String.Format("{0}, {1}", interval.Start, interval.End));
+                        if (!interval.isEmpty())
                         {
                             Line line = new Line()
                             {
@@ -245,18 +250,21 @@ namespace Matching_Planar_Maps
                 // Draw rightpointers
                 for (int n = 0; n < path.E.Count; n++)
                 {
-                    if (!float.IsNaN(rightPointers[n, b]))
+                    if (!B[n, b].isEmpty())
                     {
-                        Line rightpointerLine = new Line()
+                        if (!float.IsNaN(rightPointers[n, b]))
                         {
-                            X1 = (B[n, b].Start + n) * Size,
-                            Y1 = 0,
-                            X2 = (rightPointers[n, b]) * Size,
-                            Y2 = Size,
-                            Stroke = Brushes.Green,
-                            StrokeThickness = 1
-                        };
-                        freeSpaceStrip.Children.Add(rightpointerLine);
+                            Line rightpointerLine = new Line()
+                            {
+                                X1 = (B[n, b].Start + n) * Size,
+                                Y1 = 0,
+                                X2 = (rightPointers[n, b]) * Size,
+                                Y2 = Size,
+                                Stroke = Brushes.Green,
+                                StrokeThickness = 1
+                            };
+                            freeSpaceStrip.Children.Add(rightpointerLine);
+                        }
                     }
                 }
             }
@@ -309,10 +317,10 @@ namespace Matching_Planar_Maps
 
         public void calcRightPointers(int j)
         {
-            Stack<int> S = new Stack<int>();
+            List<int> S = new List<int>();
             int kp = 1;
             float ai1 = 0f;
-            S.Push(0);
+            S.Add(0);
 
             for (int k = 0; k < path.E.Count; k++)
             {
@@ -320,64 +328,70 @@ namespace Matching_Planar_Maps
 
                 while (kp < path.E.Count)
                 {
-                    if (ai1 > Lp[kp, j].End)
+                    if (ai1 > Lp[kp, j].End || kp + 1 == path.E.Count || Lp[kp, j].isEmpty())
                     {
-                        // k'is the maximal value we searched for
+                        // Maximal kp that fulfills (1)
+                        int w = kp;
+
+                        // Search with point to the left of kp + 1;
+                        while (w > 0)
+                        {
+                            if (!Bp[w, j].isEmpty())
+                            {
+                                break;
+                            }
+                            w--;
+                        }
+
+                        if (k < w)
+                        {
+                            rightPointers[k, j] = w + Bp[w, j].End;
+                        }
+                        else if (k > w)
+                        {
+                            rightPointers[k, j] = float.NaN;
+                        }
+                        else
+                        {
+                            if (B[k, j].Start <= Bp[k, j].End)
+                            {
+                                rightPointers[k, j] = k + Bp[k, j].End;
+                            }
+                            else
+                            {
+                                rightPointers[k, j] = float.NaN;
+                            }
+                        }
+
+                        // Remove bottom element of queue
+                        if (S.Any() && S.First() == k + 1)
+                        {
+                            S.RemoveAt(0);
+                            if (!S.Any())
+                            {
+                                ai1 = 0f;
+                            }
+                        }
+
                         break;
                     }
                     else
                     {
                         kp++;
 
-                        if (kp >= path.E.Count)
-                            break;
-
                         // Pop topmost values from S until aim > ak'
-                        while (S.Any() && L[S.Peek(), j].Start > L[kp, j].Start)
+                        while (S.Any() && L[S.Last(), j].Start > L[kp, j].Start)
                         {
-                            S.Pop();
+                            S.Remove(S.Last());
+                            if (!S.Any())
+                            {
+                                ai1 = 0f;
+                            }
                         }
-                        S.Push(kp);
-                        // Start search to left until hit already calculated shortcut pointer or beginning
-                        int w = kp;
-                        while (w >= 0 && float.IsNaN(rightPointers[w, j]))
-                        {
-                            if (k < w)
-                            {
-                                rightPointers[k, j] = w + Bp[w, j].End;
-                            }
-                            else if (k > w)
-                            {
-                                rightPointers[k, j] = float.NaN;
-                            }
-                            else
-                            {
-                                if (B[k, j].Start <= Bp[k, j].End)
-                                {
-                                    rightPointers[k, j] = k + Bp[k, j].End;
-                                }
-                                else
-                                {
-                                    rightPointers[k, j] = float.NaN;
-                                }
-                            }
-
-                            w--;
-                        }
-
-                        k = kp - 1;
+                        S.Add(kp);
                     }
                 }
             }
-
-            Console.WriteLine("Max kprime found: " + kp);
-
-            if (kp >= graph.V.Count - 1)
-            {
-                Console.WriteLine("No feasible path exists.");
-            }
-
-            dynamicProgrammingStage();
         }
 
         public void dynamicProgrammingStage()
@@ -387,36 +401,58 @@ namespace Matching_Planar_Maps
             //////////////////////////
             List<Interval> Q = new List<Interval>();
             Interval[] C = new Interval[graph.E.Count];
-            float x = float.NaN;
+            Interval result = null;
+            float x = 0; 
 
             // Initialize Q
             for (int i = 0; i < graph.E.Count; i++)
             {
-                if (B[0, i] != null && !B[0, i].isEmpty() && B[0, i].Start == 0)
+                if (!B[0, i].isEmpty() && Math.Abs(B[0, i].Start) < TOLERANCE)
                 {
                     Q.Add(B[0, i]);
+                    C[i] = new Interval(B[0, i].Start, B[0,i].End);
+                }
+                else
+                {
+                    C[i] = null;
                 }
             }
 
-            // Initialize Ci
-            for (int i = 0; i < graph.E.Count; i++)
+            // Init Q
+            Console.WriteLine("-- Init Q --");
+            for (int i = 0; i < Q.Count; i++)
             {
-                if (B[0, i] != null && !B[0, i].isEmpty())
+                Interval interval = Q[i];
+                Console.WriteLine(String.Format("{0}: {1}, l: {2:0.0000} r: {3:0.0000}", i, interval.PathIndex + interval.Start, leftPointers[interval.PathIndex, interval.GraphIndex], rightPointers[interval.PathIndex, interval.GraphIndex]));
+            }
+
+            Console.WriteLine("-- Init Ci --");
+            for (int i = 0; i < C.Length; i++)
+            {
+                if (C[i] != null)
                 {
-                    C[i] = B[0, i];
+                    Console.WriteLine(String.Format("{0}: l: {1:0.0000} r: {2:0.0000}", i, C[i].Start, C[i].End));
                 }
             }
 
             // If q is not empty continue otherwise no path exists
-            if (Q.Count > 0)
+            while (Q.Any() && result == null)
             {
                 // Sort q to priority
-                Q = Q.OrderBy(q => q.End).ToList();
+                Q = Q.OrderBy(q => q.Start).ToList();
 
-                // Step 1 extract leftmost intervall
+                // Step 1 extract leftmost interval
                 Interval I = Q.First(); // Get first interval
-                Q.Remove(Q.First()); // Remove fist intervall
+                Q.Remove(Q.First()); // Remove fist interval
                 x = leftPointers[I.PathIndex, I.GraphIndex]; // Advance x to l(I)
+                Console.WriteLine("x: " + x);
+                if (float.IsNaN(x))
+                {
+                    continue;
+                }
+
+                
+                
 
                 // Step 2 
                 // Insert the next white interval of Ci which lies to right of I into Q
@@ -425,21 +461,94 @@ namespace Matching_Planar_Maps
                     if (!B[i, I.GraphIndex].isEmpty()) // First not empty white interval
                     {
                         Q.Add(B[i, I.GraphIndex]);
-                        Q = Q.OrderBy(q => q.End).ToList(); // Should be log n
+                        Q = Q.OrderBy(q => q.Start).ToList(); // Should be log n
                         break;
                     }
                 }
 
-                // Step 3
+                // Step 3 / 4
                 // Find all adjacent edges
+                List<Edge> adj = graph.E.Where(e => e.V1 == graph.E[I.GraphIndex].V2).ToList();
+                foreach (Edge e in adj)
+                {
+                    int index = graph.E.IndexOf(e);
+                    Interval cj = C[index];
+                    if (!float.IsNaN(leftPointers[I.PathIndex, I.GraphIndex]) && cj != null)
+                    {
+                        if (leftPointers[I.PathIndex, I.GraphIndex] > cj.End)
+                        {
+                            cj.Start = leftPointers[I.PathIndex, I.GraphIndex];
+                            cj.End = rightPointers[I.PathIndex, I.GraphIndex];
+                            cj.PathPointer = I;
+                        }
+                    }
 
+                    // If left point changed delete old interval of cj in q
+                    if (cj == null || Math.Abs(leftPointers[I.PathIndex, I.GraphIndex] - leftPointers[cj.PathIndex, cj.GraphIndex]) > TOLERANCE)
+                    {
+                        // Remove old cj
+                        Q.Remove(cj);
+
+                        int start = cj == null ? 0 : cj.PathIndex;
+                        // Add new cj to the right
+                        for (int i = start; i < path.E.Count; i++)
+                        {
+                            if (B[i, index] != null && !B[i, index].isEmpty())
+                            {
+                                    cj = B[i, index];
+                                    cj.PathPointer = I;
+                                    Q.Add(cj);
+                                    break;
+                            }
+                        }
+                    }
+
+                    // Set result if endpoint reached
+                    if (cj != null)
+                    {
+                        Console.WriteLine("Rightpointer values: " + rightPointers[cj.PathIndex, cj.GraphIndex]);
+                        if (Math.Abs(rightPointers[cj.PathIndex, cj.GraphIndex] - path.E.Count) < TOLERANCE)
+                        {
+                            result = C[graph.E.IndexOf(e)];
+                            result.PathPointer = I;
+                        }
+                    }
+
+                }
+
+                // Print q
+                Console.WriteLine("-- Show Q --");
+                for (int i = 0; i < Q.Count; i++)
+                {
+                    Interval interval = Q[i];
+                    Console.WriteLine(interval.PathIndex + interval.Start);
+                }
+            }
+
+            // Clear old result drawing
+            foreach (Line resultLine in resultPath)
+            {
+                canvas.Children.Remove(resultLine);
+            }
+            resultPath.Clear();
+
+            if (result != null)
+            {
+                Console.WriteLine("Feasable path exists");
+                while (result != null)
+                {
+                    resultPath.Add(DrawLine(graph.E[result.GraphIndex].V1, graph.E[result.GraphIndex].V2, Brushes.Blue));
+                    result = result.PathPointer;
+                }
             }
             else
             {
-                Console.WriteLine("No path exists");
+                Console.WriteLine("No feasable path exists");
             }
 
         }
+
+        public List<Line> resultPath = new List<Line>();
 
         public void DrawQ(List<Interval> Q)
         {
@@ -470,12 +579,7 @@ namespace Matching_Planar_Maps
             if (nrOfIntersections == 2)
             {
                 // If both points are outside range return empty intervall
-                if (DistanceSquared(e1.V1, new Vertex(c.X, c.Y)) > Math.Pow(epsilon, 2) &&
-                    DistanceSquared(e1.V2, new Vertex(c.X, c.Y)) > Math.Pow(epsilon, 2))
-                {
-                    return interval;
-                }
-                else if (DistanceSquared(e2.V1, new Vertex(c.X, c.Y)) < Math.Pow(epsilon, 2))
+                if (DistanceSquared(e2.V1, new Vertex(c.X, c.Y)) < Math.Pow(epsilon, 2))
                 {
                     intersection2.X = e2.V1.X;
                     intersection2.Y = e2.V1.Y;
@@ -507,7 +611,7 @@ namespace Matching_Planar_Maps
             canvas.Children.Add(line);
         }
 
-        public void DrawLine(Vertex v1, Vertex v2, Brush brush)
+        public Line DrawLine(Vertex v1, Vertex v2, Brush brush)
         {
             Line line = new Line()
             {
@@ -519,6 +623,7 @@ namespace Matching_Planar_Maps
             line.Stroke = brush;
             line.StrokeThickness = 2;
             canvas.Children.Add(line);
+            return (line);
         }
 
         public Ellipse DrawCircle(Vertex v, float r, Brush brush)
@@ -595,25 +700,35 @@ namespace Matching_Planar_Maps
         private void generateGrid(float cellspacing)
         {
             graph = new Graph();
-            int size = 10;
+            Graph reverseGraph = new Graph();
+            int xSize = 10;
+            int ySize = 10;
 
             // Create vertices
-            for (int y = 0; y < size; y++)
+            for (int y = 0; y < ySize; y++)
             {
-                for (int x = 0; x < size; x++)
+                for (int x = 0; x < xSize; x++)
                 {
-                    Vertex v = new Vertex(x * cellspacing, y * cellspacing);
+                   Vertex v = new Vertex(x * cellspacing, y * cellspacing);
 
-                    if (x > 0) // connect to left
+                    // connect to left
+                    if (x > 0)
+                    {
                         graph.E.Add(new Edge(graph.V.Last(), v));
+                        //reverseGraph.E.Add(new Edge(v, graph.V.Last()));
+                    }
 
                     // Connect to above
                     if (y > 0)
-                        graph.E.Add(new Edge(graph.V[graph.V.Count - size], v));
-
+                    {
+                        graph.E.Add(new Edge(graph.V[graph.V.Count - xSize], v));
+                        //reverseGraph.E.Add(new Edge(v, graph.V[graph.V.Count - xSize]));
+                    }
                     graph.V.Add(v);
                 }
             }
+
+            graph.E.AddRange(reverseGraph.E);
 
         }
 
@@ -637,7 +752,7 @@ namespace Matching_Planar_Maps
 
             det = B * B - 4 * A * C;
 
-            if ((A <= PRECISION) || (det < 0))
+            if ((A <= TOLERANCE) || (det < 0))
             {
                 // No real solutions.
                 intersection1 = new Vertex(float.NaN, float.NaN);
@@ -671,11 +786,11 @@ namespace Matching_Planar_Maps
                 float test2 = Distance(point2, new Vertex(cx, cy));
 
                 // Validate that this solution is on the line
-                if (Distance(point1, new Vertex(cx, cy)) <= radius * (1 + PRECISION) && Distance(point2, new Vertex(cx, cy)) <= radius * (1 + PRECISION))
+                if (Distance(point1, new Vertex(cx, cy)) <= radius * (1 + TOLERANCE) && Distance(point2, new Vertex(cx, cy)) <= radius * (1 + TOLERANCE))
                     return 2;
 
-                if (Distance(point1, intersection1) + Distance(point2, intersection1) > Distance(point1, point2) * (1 + PRECISION) &&
-                    Distance(point1, intersection2) + Distance(point2, intersection2) > Distance(point1, point2) * (1 + PRECISION))
+                if (Distance(point1, intersection1) + Distance(point2, intersection1) > Distance(point1, point2) * (1 + TOLERANCE) &&
+                    Distance(point1, intersection2) + Distance(point2, intersection2) > Distance(point1, point2) * (1 + TOLERANCE))
                 {
                     intersection1 = new Vertex(float.NaN, float.NaN);
                     intersection2 = new Vertex(float.NaN, float.NaN);
@@ -731,13 +846,19 @@ namespace Matching_Planar_Maps
                 DrawIntersectionLine(intersection1, intersection2, Brushes.Yellow);
             }
 
-
+            dynamicProgrammingStage();
         }
 
         private void slider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
         {
             epsilon = (float)e.NewValue;
-            init();
+
+            if (!initialized)
+            {
+                initialized = true;
+                init();
+            }
+
             Calc();
         }
 
