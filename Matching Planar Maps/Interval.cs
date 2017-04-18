@@ -8,19 +8,21 @@ namespace Matching_Planar_Maps
 {
     public class Interval
     {
-        private float start, end;
-
         public Interval()
         {
-            start = float.NaN;
-            end = float.NaN;
+            Start = float.NaN;
+            End = float.NaN;
         }
 
         public Interval(float x, float y)
         {
             Start = x;
-            End = y > 1 ? 1 : y;
+            End = y;
         }
+
+        public List<float> LeftPointers { get; set; } = new List<float>();
+
+        public List<float> RightPointers { get; set; } = new List<float>();
 
         public int PathIndex { get; set; }
 
@@ -28,22 +30,13 @@ namespace Matching_Planar_Maps
 
         public Interval PathPointer { get; set; }
 
-        public float Start
-        {
-            get {  return start; }
-            set { start = value > 1 ? 1 : value; }
-        }
+        public float Start { get; set; }
 
-        public float End
-        {
-            get { return end; }
-            set { end = value > 1 ? 1 : value; }
-        }
+        public float End { get; set; }
 
-
-        public bool isEmpty()
+        public bool Empty()
         {
-            return (Start == 1) && (End == 0);
+            return Start >= End;
         }
     }
 }

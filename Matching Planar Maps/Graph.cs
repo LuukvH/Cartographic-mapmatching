@@ -8,7 +8,30 @@ namespace Matching_Planar_Maps
 {
     public class Graph
     {
-        public List<Vertex> V = new List<Vertex>();
-        public List<Edge> E = new List<Edge>();
+        private Vertex[] _vertices = null;
+        private List<int>[] _edges = null;
+        private int _size = 0;
+
+        public Graph(int size)
+        {
+            _size = size;
+
+            _vertices = new Vertex[size];
+
+            _edges = new List<int>[size];
+            for (int i = 0; i < size; i++)
+            {
+                _edges[i] = new List<int>();
+            }
+        }
+
+        public int Size
+        {
+            get { return _size; }
+        }
+
+        public Vertex[] V => _vertices;
+
+        public List<int>[] E => _edges;
     }
 }

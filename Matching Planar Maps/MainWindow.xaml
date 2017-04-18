@@ -25,7 +25,7 @@
             </StackPanel.Resources>
         </StackPanel>
             </ScrollViewer>
-        <Slider x:Name="slider" Value="42" Grid.Row="1" VerticalAlignment="Top" Grid.ColumnSpan="2" Width="362" ValueChanged="slider_ValueChanged" Maximum="500" TickFrequency="10"/>
+        <Slider x:Name="slider" Value="42" Grid.Row="1" VerticalAlignment="Top" Grid.ColumnSpan="2" Width="362" ValueChanged="slider_ValueChanged" Maximum="500" TickFrequency="10" Thumb.DragCompleted="slider_DragCompleted" />
         <Button x:Name="button" Content="Grid" HorizontalAlignment="Left" Margin="10,20.8,0,0" Grid.Row="1" VerticalAlignment="Top" Width="75" Click="button_Click"/>
 
     </Grid>
