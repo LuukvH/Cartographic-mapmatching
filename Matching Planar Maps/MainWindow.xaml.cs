@@ -25,17 +25,21 @@ namespace Matching_Planar_Maps
         private Graph _graph;
         private Graph _path;
 
+        private bool _debug = false;
+
         private const float TOLERANCE = 0.0000001f;
 
         // Free space parameters
         private int steps = 50;
-        private int _size = 100;
+        private int _size = 50;
 
         public float epsilon { get; set; } = 25;
 
         private Boolean initialized = false;
 
-        private List<Canvas>[] freeSpaceStrips;
+        private List<FreeSpaceStrip>[] _freeSpaceStrips;
+
+        private Interval _result = null;
 
         public MainWindow()
         {
@@ -44,26 +48,26 @@ namespace Matching_Planar_Maps
 
         public void init()
         {
-            _graph = new Graph(5);
-            _graph.V[0] = new Vertex(20, 20);
-            _graph.V[1] = new Vertex(80, 80);
-            _graph.V[2] = new Vertex(110, 30);
-            _graph.V[3] = new Vertex(150, 50);
-            _graph.V[4] = new Vertex(240, 80);
+            _graph = new Graph(3);
+            _graph.V[0] = new Vertex(20, 15);
+            _graph.V[1] = new Vertex(120, 10);
+            _graph.V[2] = new Vertex(20, 5);
             _graph.E[0].Add(1);
             _graph.E[1].Add(2);
-            _graph.E[2].Add(3);
-            _graph.E[2].Add(4);
 
             // The path
-            _path = new Graph(4);
-            _path.V[0] = new Vertex(20, 60);
-            _path.V[1] = new Vertex(80, 30);
-            _path.V[2] = new Vertex(120, 60);
-            _path.V[3] = new Vertex(150, 60);
+            _path = new Graph(5);
+            _path.V[0] = new Vertex(40, 40);
+            _path.V[1] = new Vertex(120, 60);
+            _path.V[2] = new Vertex(40, 80);
+            _path.V[3] = new Vertex(120, 100);
+            _path.V[4] = new Vertex(140, 40);
             _path.E[0].Add(1);
             _path.E[1].Add(2);
             _path.E[2].Add(3);
+            _path.E[3].Add(4);
+
+            initialized = true;
         }
 
         // Preprocessing
@@ -147,7 +151,7 @@ namespace Matching_Planar_Maps
 
                         float leftpointer = float.NaN;
                         int k = interval.PathIndex;
-                        float max_ai = L[i, k][j].Start;
+                        float max_ai = 0; //L[i, k][j].Start;
 
                         if (B[i][k].Start <= B[_graph.E[i][j]][k].End && !B[_graph.E[i][j]][k].Empty())
                         {
@@ -157,8 +161,8 @@ namespace Matching_Planar_Maps
                         {
                             for (int n = k + 1; n < _path.Size - 1; n++)
                             {
-                                if (L[i, n][j].End >= max_ai)
                                 // Can move to this cell in a monetone path
+                                if (!L[i, n][j].Empty() && L[i, n][j].End >= max_ai)
                                 {
                                     if (B[_graph.E[i][j]][n].Start > B[_graph.E[i][j]][n].End)
                                     {
@@ -200,7 +204,7 @@ namespace Matching_Planar_Maps
 
                         while (kp < _path.Size - 1)
                         {
-                            if (ai1 > L[i, k + 1][j].End || kp + 1 == _path.Size - 1 || L[i, k + 1][j].Empty())
+                            if (ai1 > L[i, kp + 1][j].End || kp + 1 == _path.Size - 1 || L[i, kp + 1][j].Empty())
                             {
                                 // Maximal kp that fulfills (1)
                                 int w = kp;
@@ -218,28 +222,20 @@ namespace Matching_Planar_Maps
                                 if (k < w)
                                 {
                                     B[i][k].RightPointers.Add(B[_graph.E[i][j]][w].End);
-                                    //Console.WriteLine(B[_graph.E[i][j]][w].End);
-                                    //rightPointers[k, j] = w + B[_graph.E[i][j]][w].End;
                                 }
                                 else if (k > w)
                                 {
                                     B[i][k].RightPointers.Add(float.NaN);
-                                    //Console.WriteLine(float.NaN);
-                                    //rightPointers[k, j] = float.NaN;
                                 }
                                 else
                                 {
-                                    if (B[i][k].Start <= B[_graph.E[i][j]][k].End)
+                                    if (!B[_graph.E[i][j]][k].Empty() && B[i][k].Start <= B[_graph.E[i][j]][k].End)
                                     {
                                         B[i][k].RightPointers.Add(B[_graph.E[i][j]][k].End);
-                                        //Console.WriteLine(B[_graph.E[i][j]][k].End);
-                                        //rightPointers[k, j] = k + B[_graph.E[i][j]][k].End;
                                     }
                                     else
                                     {
                                         B[i][k].RightPointers.Add(float.NaN);
-                                        //Console.WriteLine(float.NaN);
-                                        //rightPointers[k, j] = float.NaN;
                                     }
                                 }
 
@@ -250,6 +246,10 @@ namespace Matching_Planar_Maps
                                     if (!S.Any())
                                     {
                                         ai1 = 0f;
+                                    }
+                                    else
+                                    {
+                                        ai1 = L[i, S[0]][j].Start;
                                     }
                                 }
 
@@ -271,6 +271,7 @@ namespace Matching_Planar_Maps
                                 S.Add(kp);
                             }
                         }
+                        //k = kp;
                     }
                 }
             }
@@ -282,14 +283,18 @@ namespace Matching_Planar_Maps
             // Initialization phase //
             //////////////////////////
             List<Interval> Q = new List<Interval>();
-            Interval[] C = new Interval[_graph.Size];
+            Range[] C = new Range[_graph.Size];
             Interval result = null;
             float x = 0;
+
+            int case1 = 0;
+            int case2 = 0;
+            int case3 = 0;
 
             // Fill c
             for (int c = 0; c < C.Length; c++)
             {
-                C[c] = new Interval();
+                C[c] = new Range();
                 C[c].GraphIndex = c;
             }
 
@@ -305,11 +310,14 @@ namespace Matching_Planar_Maps
             }
 
             // Init Q
-            Console.WriteLine("-- Init Q --");
-            print(Q);
+            if (_debug)
+            {
+                Console.WriteLine("-- Init Q --");
+                print(Q);
 
-            Console.WriteLine("-- Init Ci --");
-            print(C);
+                Console.WriteLine("-- Init Ci --");
+                print(C);
+            }
 
             // If q is not empty continue otherwise no path exists
             while (Q.Any() && result == null)
@@ -321,15 +329,24 @@ namespace Matching_Planar_Maps
                 Interval I = Q.First(); // Get first interval
                 Q.Remove(Q.First()); // Remove fist interval
                 x = I.Start; // Advance x to l(I)
-                Console.WriteLine("x: " + x);
+                if (_debug)
+                {
+                    Console.WriteLine("x: " + x);
+                }
 
                 // Step 2 
                 // Insert the next white interval of Ci which lies to right of I into Q
                 for (int i = 0; i < FD[I.GraphIndex].Count; i++) // Search to the right for first white interval
                 {
-                    if (FD[I.GraphIndex][i].Start > I.Start)
+                    if (FD[I.GraphIndex][i].Start > I.Start && FD[I.GraphIndex][i].Start < C[I.GraphIndex].End)
                     {
                         Q.Add(FD[I.GraphIndex][i]);
+
+                        if (FD[I.GraphIndex][i].PathPointer == null)
+                        {
+                            Console.WriteLine(i);
+                        }
+
                         Q = Q.OrderBy(q => q.Start).ToList(); // Should be log n
                         break;
                     }
@@ -337,25 +354,22 @@ namespace Matching_Planar_Maps
 
                 // Step 3 / 4
                 // Find all adjacent edges
-                for (int j = 0; j< _graph.E[I.GraphIndex].Count; j++)
+                for (int j = 0; j < _graph.E[I.GraphIndex].Count; j++)
                 {
-                    Interval cj = C[_graph.E[I.GraphIndex][j]];
+                    Range cj = C[_graph.E[I.GraphIndex][j]];
                     float lfttend = cj.Start;
-                    if (!float.IsNaN(I.LeftPointers[j]))
-                    {
-                        if (I.LeftPointers[j] > cj.End || float.IsNaN(cj.End))
-                        {
-                            C[_graph.E[I.GraphIndex][j]] = new Interval(I.LeftPointers[j], I.RightPointers[j]);
-                            C[_graph.E[I.GraphIndex][j]].GraphIndex = cj.GraphIndex;
-                            C[_graph.E[I.GraphIndex][j]].PathPointer = I;
-                            cj = C[_graph.E[I.GraphIndex][j]];
-                        }
-                    }
 
-                    // If left point changed delete old interval of cj in q
-                    if (float.IsNaN(lfttend) || Math.Abs(lfttend - cj.Start) > TOLERANCE)
+                    if (float.IsNaN(I.LeftPointers[j]))
+                        continue;
+                    
+                    if (I.LeftPointers[j] > cj.End || float.IsNaN(cj.End))
                     {
-                        // Remove old cj
+                        case1++;
+
+                        C[_graph.E[I.GraphIndex][j]] = new Range(I.LeftPointers[j], I.RightPointers[j]);
+                        C[_graph.E[I.GraphIndex][j]].GraphIndex = cj.GraphIndex;
+                        cj = C[_graph.E[I.GraphIndex][j]];
+
                         foreach (Interval q in Q)
                         {
                             if (q.GraphIndex == cj.GraphIndex)
@@ -365,58 +379,131 @@ namespace Matching_Planar_Maps
                             }
                         }
 
-                        // Insert new interval cj
+                        // Insert new interval 
+                        bool first = true;
                         for (int i = 0; i < FD[_graph.E[I.GraphIndex][j]].Count; i++)
                         {
+
                             if (FD[_graph.E[I.GraphIndex][j]][i].Start >= cj.Start && FD[_graph.E[I.GraphIndex][j]][i].Start <= cj.End)
                             {
-                                Q.Add(FD[_graph.E[I.GraphIndex][j]][i]);
-                                cj.PathPointer = I;
+                                if (first)
+                                {
+                                    Q.Add(FD[_graph.E[I.GraphIndex][j]][i]);
+                                    first = false;
+                                }
+
+                                if (Math.Abs(FD[_graph.E[I.GraphIndex][j]][i].Start) > TOLERANCE)
+                                {
+                                    FD[_graph.E[I.GraphIndex][j]][i].PathPointer = FD[_graph.E[I.GraphIndex][j]][i].PathPointer ?? I;
+                                }
+                            }
+                        }
+                    }
+
+                    // If left point changed delete old interval of cj in q
+                    if (float.IsNaN(lfttend) || Math.Abs(lfttend - cj.Start) > TOLERANCE)
+                    {
+                        case2++;
+
+                        // Remove old cj
+                        foreach (Interval q in Q)
+                        {
+                            if (q.GraphIndex == cj.GraphIndex)
+
+                            {
+                                Q.Remove(q);
                                 break;
+                            }
+                        }
+
+                        // Insert new interval cj
+                        bool first = true;
+                        for (int i = 0; i < FD[_graph.E[I.GraphIndex][j]].Count; i++)
+                        {
+
+                            if (FD[_graph.E[I.GraphIndex][j]][i].Start >= cj.Start && FD[_graph.E[I.GraphIndex][j]][i].Start <= cj.End)
+                            {
+                                if (first)
+                                {
+                                    Q.Add(FD[_graph.E[I.GraphIndex][j]][i]);
+                                    first = false;
+                                }
+
+                                if (Math.Abs(FD[_graph.E[I.GraphIndex][j]][i].Start) > TOLERANCE)
+                                {
+                                    FD[_graph.E[I.GraphIndex][j]][i].PathPointer = FD[_graph.E[I.GraphIndex][j]][i].PathPointer ?? I;
+                                }
+                            }
+                        }
+                    }
+
+                    // If rightpoint has changed
+                    if (I.RightPointers[j] > cj.End)
+                    {
+                        case3++;
+
+                        cj.End = I.RightPointers[j];
+                        //cj.PathPointer = I;
+
+                        // Insert new interval cj
+
+                        bool first = Q.All(c => c.GraphIndex != cj.GraphIndex);
+                        for (int i = 0; i < FD[_graph.E[I.GraphIndex][j]].Count; i++)
+                        {
+
+                            if (FD[_graph.E[I.GraphIndex][j]][i].Start >= cj.Start && FD[_graph.E[I.GraphIndex][j]][i].Start <= cj.End)
+                            {
+                                if (first)
+                                {
+                                    Q.Add(FD[_graph.E[I.GraphIndex][j]][i]);
+                                    first = false;
+                                }
+
+                                if (Math.Abs(FD[_graph.E[I.GraphIndex][j]][i].Start) > TOLERANCE)
+                                {
+                                    FD[_graph.E[I.GraphIndex][j]][i].PathPointer = FD[_graph.E[I.GraphIndex][j]][i].PathPointer ?? I;
+                                }
                             }
                         }
                     }
 
                     // Set result if endpoint reached
-                    //Console.WriteLine("Rightpointer values: " + rightPointers[cj.PathIndex, cj.GraphIndex]);
-                    if (cj.End >= _path.Size - 1)
+                    // Console.WriteLine("Rightpointer values: " + rightPointers[cj.PathIndex, cj.GraphIndex]);
+                    if (cj.End >= _path.Size - 1 - TOLERANCE)
                     {
-                        result = cj;
-                        break;
+                        result = Q.First(i => i.GraphIndex == cj.GraphIndex);
                     }
-
+                    
                 }
 
                 // Print q
-                Console.WriteLine("-- Show Q --");
-                print(Q);
+                if (_debug)
+                {
+                    Console.WriteLine("-- Show Q --");
+                    print(Q);
 
-                // Print c
-                Console.WriteLine("-- Show C --");
-                print(C);
-            }
 
-            // Clear old result drawing
-            foreach (Line resultLine in resultPath)
-            {
-                canvas.Children.Remove(resultLine);
+                    // Print c
+                    Console.WriteLine("-- Show C --");
+                    print(C);
+                }
             }
-            resultPath.Clear();
 
             if (result != null)
             {
+                _result = result;
                 Console.WriteLine("Feasable path exists");
-                while (result != null)
-                {
-                    //resultPath.Add(DrawLine(_graph.V[result.GraphIndex], _graph.V[result.PathPointer.GraphIndex], Brushes.Blue));
-                    Console.WriteLine("v" + result.GraphIndex);
-                    result = result.PathPointer;
-                }
+
             }
             else
             {
+                _result = null;
                 Console.WriteLine("No feasable path exists");
             }
+
+            Console.WriteLine("Case1: " + case1);
+            Console.WriteLine("Case2: " + case2);
+            Console.WriteLine("Case3: " + case3);
 
         }
 
@@ -425,28 +512,30 @@ namespace Matching_Planar_Maps
             for (int i = 0; i < Q.Count; i++)
             {
                 Interval interval = Q[i];
-                Console.Write(String.Format("{0}: {1}, s: {2} e: {3}", i, interval.PathIndex, interval.GraphIndex, interval.Start, interval.End));
-                
+                Console.Write(String.Format("{0}: p: {1}, g: {2}, s: {3} e: {4}, ",
+                   i, interval.PathIndex, interval.GraphIndex, interval.Start, interval.End));
 
+                for (int n = 0; n < interval.LeftPointers.Count; n++)
+                {
+                    Console.Write(String.Format("[{0}] l: {1}: r: {2}, ", _graph.E[interval.GraphIndex][n], interval.LeftPointers[n],
+                        interval.RightPointers[n]));
+                }
+                Console.WriteLine();
             }
         }
 
-        public void print(Interval[] C)
+        public void print(Range[] C)
         {
             for (int i = 0; i < C.Length; i++)
             {
-                Interval interval = C[i];
-                if (!interval.Empty())
+                Range range = C[i];
+                if (!range.Empty())
                 {
-                    Console.Write(String.Format("{0}: l: {1:0.0000} r: {2:0.0000}, ", i, C[i].Start, C[i].End));
-
-                    while (interval != null)
+                    if (!float.IsNaN(range.Start) || !float.IsNaN(range.End))
                     {
-                        //resultPath.Add(DrawLine(_graph.V[result.GraphIndex], _graph.V[result.PathPointer.GraphIndex], Brushes.Blue));
-                        Console.Write("v" + interval.GraphIndex);
-                        interval = interval.PathPointer;
+                        Console.Write(String.Format("{0}: l: {1:0.0000} r: {2:0.0000}, ", i, C[i].Start, C[i].End));
+                        Console.WriteLine();
                     }
-                    Console.WriteLine();
                 }
             }
         }
@@ -462,50 +551,11 @@ namespace Matching_Planar_Maps
             }
         }
 
-            
 
 
-                /*
-        private void generateGrid(float cellspacing)
-        {
-            graph = new Graph();
-            Graph reverseGraph = new Graph();
-            int xSize = 10;
-            int ySize = 10;
+        #region Draw
 
-            // Create vertices
-            for (int y = 0; y < ySize; y++)
-            {
-                for (int x = 0; x < xSize; x++)
-                {
-                    Vertex v = new Vertex(x * cellspacing, y * cellspacing);
-
-                    // connect to left
-                    if (x > 0)
-                    {
-                        graph.E.Add(new Edge(graph.V.Last(), v));
-                        //reverseGraph.E.Add(new Edge(v, graph.V.Last()));
-                    }
-
-                    // Connect to above
-                    if (y > 0)
-                    {
-                        graph.E.Add(new Edge(graph.V[graph.V.Count - xSize], v));
-                        //reverseGraph.E.Add(new Edge(v, graph.V[graph.V.Count - xSize]));
-                    }
-                    graph.V.Add(v);
-                }
-            }
-
-            graph.E.AddRange(reverseGraph.E);
-
-        }
-        */
-
-                #region Draw
-
-            public
-            void ReDraw()
+        public void ReDraw()
         {
             ReDraw(false);
         }
@@ -515,20 +565,40 @@ namespace Matching_Planar_Maps
 
             canvas.Children.Clear();
             Draw(_graph, Brushes.Turquoise);
-            Draw(_path, Brushes.GreenYellow);
+            Draw(_path, Brushes.Black);
 
             GenerateFreeSpaceStrips();
 
-            if (drawFreespace)
+            for (int i = 0; i < _graph.Size; i++)
             {
-                DrawFreeSpaceDiagram();
+                // For every outgoing edge
+                for (int j = 0; j < _graph.E[i].Count; j++)
+                {
+                    FreeSpaceStrip freeSpaceStrip = _freeSpaceStrips[i][j];
+
+                    if (!freeSpaceStrip.active)
+                        continue;
+
+                    if (drawFreespace)
+                        DrawFreeSpaceDiagram(freeSpaceStrip);
+
+                    DrawIntervals(freeSpaceStrip);
+
+                    DrawLeftPointers(freeSpaceStrip);
+
+                    DrawRightPointers(freeSpaceStrip);
+                }
             }
 
-            DrawIntervals();
+            DrawResult(_result);
 
-            DrawLeftPointers();
+            _c = _c ?? _path.V[0];
+            canvas.Children.Add(DrawCircle(_c, epsilon, Brushes.Red));
+        }
 
-            DrawRightPointers();
+        public float Inv(float val)
+        {
+            return (val - _size) * -1;
         }
 
         public void Draw(Graph graph, Brush brush)
@@ -580,189 +650,171 @@ namespace Matching_Planar_Maps
         public void GenerateFreeSpaceStrips()
         {
             // Generate free space strips
-            freeSpaceStrips = new List<Canvas>[_graph.Size];
+            _freeSpaceStrips = new List<FreeSpaceStrip>[_graph.Size];
             freeSpaceStack.Children.Clear();
 
             for (int i = 0; i < _graph.Size; i++)
             {
-                freeSpaceStrips[i] = new List<Canvas>();
+                _freeSpaceStrips[i] = new List<FreeSpaceStrip>(_graph.Size * 4);
 
                 // For every outgoing edge
                 for (int j = 0; j < _graph.E[i].Count; j++)
                 {
-                    Canvas freeSpaceStrip = new Canvas
+                    FreeSpaceStrip freeSpaceStrip = new FreeSpaceStrip(i, _graph.E[i][j], _size);
+                    freeSpaceStrip.MouseEnter += freespacestrip_MouseEnter;
+                    freeSpaceStrip.MouseLeftButtonDown += freespacestrip_Click;
+
+                    if (FD[i].Count > 0 || FD[_graph.E[i][j]].Count > 0)
                     {
-                        Height = _size,
-                        Background = Brushes.Gray,
-                        LayoutTransform = new ScaleTransform(1, -1, .5, .5)
-                    };
-
-                    freeSpaceStack.Children.Insert(0, freeSpaceStrip);
-                    freeSpaceStrips[i].Add(freeSpaceStrip);
-                }
-            }
-        }
-
-        public void DrawFreeSpaceDiagram()
-        {
-            for (int i = 0; i < _graph.Size; i++)
-            {
-                // For every outgoing edge
-                for (int j = 0; j < _graph.E[i].Count; j++)
-                {
-                    Canvas freeSpaceStrip = freeSpaceStrips[i][j];
-
-                    // For every edge in path
-                    for (int n = 0; n < _path.Size; n++)
-                    {
-                        if (_path.E[n].Count <= 0)
-                            continue;
-
-                        for (int s = 0; s < steps; s++)
+                        foreach (Interval interval in FD[i])
                         {
-                            float loc = ((1f / steps) * s);
-                            Vertex c = _path.V[n] + (_path.V[_path.E[n][0]] - _path.V[n]) * loc;
-
-                            Interval interval = GraphFunctions.CalculateInterval(_graph.V[i], _graph.V[_graph.E[i][j]], c, epsilon);
-                            if (!interval.Empty())
+                            if (!float.IsNaN(interval.LeftPointers[j]) ||
+                                !float.IsNaN(interval.RightPointers[j]))
                             {
-                                Line line = new Line()
-                                {
-                                    X1 = (loc + n) * _size,
-                                    Y1 = interval.Start * _size,
-                                    X2 = (loc + n) * _size,
-                                    Y2 = interval.End * _size,
-                                    Stroke = Brushes.White,
-                                    StrokeThickness = 4
-                                };
-                                freeSpaceStrip.Children.Add(line);
+                                freeSpaceStrip.wbmp = BitmapFactory.New(_size * _path.Size, _size);
+                                freeSpaceStrip.wbmp.Clear(Colors.Gray);
+                                freeSpaceStrip.imgControl.Source = freeSpaceStrip.wbmp;
+                                freeSpaceStack.Children.Insert(0, freeSpaceStrip);
+                                freeSpaceStrip.active = true;
+                                break;
                             }
                         }
                     }
+
+                    _freeSpaceStrips[i].Add(freeSpaceStrip);
                 }
             }
         }
 
-        public void DrawIntervals()
+        public void DrawFreeSpaceDiagram(FreeSpaceStrip freeSpaceStrip)
         {
-            for (int i = 0; i < _graph.Size; i++)
+            int i = freeSpaceStrip.I;
+            int j = _graph.E[i].IndexOf(freeSpaceStrip.J);
+
+            freeSpaceStrip.Canvas.Width = _size * _path.Size;
+            // For every edge in path
+            for (int n = 0; n < _path.Size; n++)
             {
-                // For every outgoing edge
-                for (int j = 0; j < _graph.E[i].Count; j++)
+                if (_path.E[n].Count <= 0)
+                    continue;
+
+                for (int s = 0; s < steps; s++)
                 {
-                    Canvas freeSpaceStrip = freeSpaceStrips[i][j];
+                    float loc = ((1f / steps) * s);
+                    Vertex c = _path.V[n] + (_path.V[_path.E[n][0]] - _path.V[n]) * loc;
 
-                    // FD intervals
-                    foreach (Interval interval in FD[i])
+                    Interval interval = GraphFunctions.CalculateInterval(_graph.V[i], _graph.V[_graph.E[i][j]], c, epsilon);
+                    if (!interval.Empty())
                     {
-                        Line line = new Line()
-                        {
-                            X1 = interval.Start * _size,
-                            Y1 = 0,
-                            X2 = interval.End * _size,
-                            Y2 = 0
-                        };
-                        line.Stroke = Brushes.Blue;
-                        line.StrokeThickness = 2;
-                        freeSpaceStrip.Children.Add(line);
-                    }
+                        int X1 = Convert.ToInt32((loc + n) * _size);
+                        int Y1 = Convert.ToInt32(Inv(interval.Start * _size));
+                        int X2 = Convert.ToInt32((loc + n) * _size);
+                        int Y2 = Convert.ToInt32(Inv(interval.End * _size));
 
-                    foreach (Interval interval in FD[_graph.E[i][j]])
-                    {
-                        if (!interval.Empty())
-                        {
-                            Line line = new Line()
-                            {
-                                X1 = interval.Start * _size,
-                                Y1 = _size,
-                                X2 = interval.End * _size,
-                                Y2 = _size
-                            };
-                            line.Stroke = Brushes.Blue;
-                            line.StrokeThickness = 2;
-                            freeSpaceStrip.Children.Add(line);
-                        }
-                    }
-
-                    // L intervals
-                    for (int p = 0; p < _path.Size; p++)
-                    {
-                        Interval interval = L[i, p][j];
-                        if (!interval.Empty())
-                        {
-                            Line line = new Line()
-                            {
-                                X1 = _size * p,
-                                Y1 = interval.Start * _size,
-                                X2 = _size * p,
-                                Y2 = interval.End * _size,
-                            };
-                            line.Stroke = Brushes.Blue;
-                            line.StrokeThickness = 2;
-                            freeSpaceStrip.Children.Add(line);
-                        }
+                        freeSpaceStrip.wbmp.DrawLine(X1, Y1, X2, Y2, Colors.White);
+                        //Line line = new Line()
+                        //{
+                        //    X1 = (loc + n) * _size,
+                        //    Y1 = interval.Start * _size,
+                        //    X2 = (loc + n) * _size,
+                        //    Y2 = interval.End * _size,
+                        //    Stroke = Brushes.White,
+                        //    StrokeThickness = 4
+                        //};
+                        //freeSpaceStrip.Canvas.Children.Add(line);
                     }
                 }
             }
         }
 
-        public void DrawLeftPointers()
+        public void DrawIntervals(FreeSpaceStrip freeSpaceStrip)
         {
-            for (int i = 0; i < _graph.Size; i++)
+            int i = freeSpaceStrip.I;
+            int j = _graph.E[i].IndexOf(freeSpaceStrip.J);
+
+            // FD intervals
+            foreach (Interval interval in FD[i])
             {
-                // For every outgoing edge
-                for (int j = 0; j < _graph.E[i].Count; j++)
+                int X1 = Convert.ToInt32(interval.Start * _size);
+                int Y1 = Convert.ToInt32(_size);
+                int X2 = Convert.ToInt32(interval.End * _size);
+                int Y2 = Convert.ToInt32(_size);
+                freeSpaceStrip.wbmp.DrawLine(X1, Y1, X2, Y2, Colors.Blue);
+            }
+
+            foreach (Interval interval in FD[_graph.E[i][j]])
+            {
+                if (!interval.Empty())
                 {
-                    Canvas freeSpaceStrip = freeSpaceStrips[i][j];
+                    int X1 = Convert.ToInt32(interval.Start * _size);
+                    int Y1 = Convert.ToInt32(0);
+                    int X2 = Convert.ToInt32(interval.End * _size);
+                    int Y2 = Convert.ToInt32(0);
+                    freeSpaceStrip.wbmp.DrawLine(X1, Y1, X2, Y2, Colors.Blue);
+                }
+            }
 
-                    // FD intervals
-                    foreach (Interval interval in FD[i])
-                    {
-                        if (float.IsNaN(interval.LeftPointers[j]))
-                            continue;
-
-                        Line line = new Line()
-                        {
-                            X1 = interval.Start * _size,
-                            Y1 = 0,
-                            X2 = interval.LeftPointers[j] * _size,
-                            Y2 = _size
-                        };
-                        line.Stroke = Brushes.Green;
-                        line.StrokeThickness = 1;
-                        freeSpaceStrip.Children.Add(line);
-                    }
+            // L intervals
+            for (int p = 0; p < _path.Size; p++)
+            {
+                Interval interval = L[i, p][j];
+                if (!interval.Empty())
+                {
+                    int X1 = Convert.ToInt32(_size * p);
+                    int Y1 = Convert.ToInt32(Inv(interval.Start * _size));
+                    int X2 = Convert.ToInt32(_size * p);
+                    int Y2 = Convert.ToInt32(Inv(interval.End * _size));
+                    freeSpaceStrip.wbmp.DrawLine(X1, Y1, X2, Y2, Colors.Blue);
                 }
             }
         }
 
-        public void DrawRightPointers()
+        public void DrawLeftPointers(FreeSpaceStrip freeSpaceStrip)
         {
-            for (int i = 0; i < _graph.Size; i++)
+            int i = freeSpaceStrip.I;
+            int j = _graph.E[i].IndexOf(freeSpaceStrip.J);
+
+            // FD intervals
+            foreach (Interval interval in FD[i])
             {
-                // For every outgoing edge
-                for (int j = 0; j < _graph.E[i].Count; j++)
-                {
-                    Canvas freeSpaceStrip = freeSpaceStrips[i][j];
+                if (float.IsNaN(interval.LeftPointers[j]))
+                    continue;
 
-                    // FD intervals
-                    foreach (Interval interval in FD[i])
-                    {
-                        if (float.IsNaN(interval.RightPointers[j]))
-                            continue;
+                int X1 = Convert.ToInt32(interval.Start * _size);
+                int Y1 = Convert.ToInt32(_size);
+                int X2 = Convert.ToInt32(interval.LeftPointers[j] * _size);
+                int Y2 = Convert.ToInt32(0);
+                freeSpaceStrip.wbmp.DrawLine(X1, Y1, X2, Y2, Colors.Green);
+            }
+        }
 
-                        Line line = new Line()
-                        {
-                            X1 = interval.Start * _size,
-                            Y1 = 0,
-                            X2 = interval.RightPointers[j] * _size,
-                            Y2 = _size
-                        };
-                        line.Stroke = Brushes.Red;
-                        line.StrokeThickness = 1;
-                        freeSpaceStrip.Children.Add(line);
-                    }
-                }
+        public void DrawRightPointers(FreeSpaceStrip freeSpaceStrip)
+        {
+            int i = freeSpaceStrip.I;
+            int j = _graph.E[i].IndexOf(freeSpaceStrip.J);
+
+            // FD intervals
+            foreach (Interval interval in FD[i])
+            {
+                if (float.IsNaN(interval.RightPointers[j]))
+                    continue;
+
+                int X1 = Convert.ToInt32(interval.Start * _size);
+                int Y1 = Convert.ToInt32(_size);
+                int X2 = Convert.ToInt32(interval.RightPointers[j] * _size);
+                int Y2 = Convert.ToInt32(0);
+                freeSpaceStrip.wbmp.DrawLine(X1, Y1, X2, Y2, Colors.Red);
+            }
+        }
+
+        public void DrawResult(Interval result)
+        {
+            while (result != null && result.PathPointer != null)
+            {
+                Line line = DrawLine(_graph.V[result.GraphIndex], _graph.V[result.PathPointer.GraphIndex], Brushes.Blue);
+                resultPath.Add(line);
+                canvas.Children.Add(line);
+                result = result.PathPointer;
             }
         }
 
@@ -770,19 +822,71 @@ namespace Matching_Planar_Maps
 
         #region Events
 
-        private
-            void canvas_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        private Vertex _c = null;
+        private void canvas_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
 
+            Point p = Mouse.GetPosition(canvas);
+            _c = new Vertex((float)p.X, (float)p.Y);
+
+            _debug = false;
             Calculation();
+            _debug = false;
 
             ReDraw(true);
         }
 
+        private Line _edge_highlighting = null;
+        private void freespacestrip_MouseEnter(object sender, RoutedEventArgs e)
+        {
+            FreeSpaceStrip fss = ((FreeSpaceStrip)sender);
+
+            try
+            {
+                canvas.Children.Remove(_edge_highlighting);
+                _edge_highlighting = DrawLine(_graph.V[fss.I], _graph.V[fss.J], Brushes.Red);
+                canvas.Children.Add(_edge_highlighting);
+            }
+            catch
+            {
+                // ignored
+            }
+        }
+
+        private void freespacestrip_Click(object sender, RoutedEventArgs e)
+        {
+            FreeSpaceStrip fss = ((FreeSpaceStrip)sender);
+
+            Graph graph = new Graph(2);
+            graph.V[0] = _graph.V[fss.I];
+            graph.V[1] = _graph.V[fss.J];
+            graph.E[0].Add(1);
+            //graph.E[1].Add(0);
+
+            _graph = graph;
+
+            Calculation();
+
+
+            //ReDraw(true);
+        }
+
         private void slider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
         {
-            epsilon = (float)e.NewValue;
 
+            _debug = false;
+
+            epsilon = (float)e.NewValue;
+            try
+            {
+                lblEpsilon.Content = epsilon.ToString();
+            }
+            catch
+            {
+                // ignored
+            }
+
+            /*
             if (!initialized)
             {
                 initialized = true;
@@ -791,20 +895,69 @@ namespace Matching_Planar_Maps
 
             Calculation();
 
-            ReDraw(true);
+            ReDraw(false);
+            */
         }
 
         private void button_Click(object sender, RoutedEventArgs e)
         {
+            if (!initialized)
+                init();
 
+            _graph = new GridGraph(30, 50, 10f);
+
+            canvas.Children.Clear();
+            Draw(_graph, Brushes.Turquoise);
+            Draw(_path, Brushes.Black);
         }
         #endregion
 
         private void slider_DragCompleted(object sender, DragCompletedEventArgs dragCompletedEventArgs)
         {
+            Calculation();
             ReDraw(true);
         }
 
+        private void Result_Click(object sender, RoutedEventArgs e)
+        {
+            if (_result != null)
+            {
+                freeSpaceStack.Children.Clear();
+                Interval result = _result;
+                while (result != null && result.PathPointer != null)
+                {
+                    FreeSpaceStrip freeSpaceStrip = new FreeSpaceStrip(result.PathPointer.GraphIndex, result.GraphIndex, _size);
+                    freeSpaceStrip.MouseEnter += freespacestrip_MouseEnter;
+                    freeSpaceStrip.MouseLeftButtonDown += freespacestrip_Click;
+
+                    freeSpaceStrip.wbmp = BitmapFactory.New(_size * _path.Size, _size);
+                    freeSpaceStrip.wbmp.Clear(Colors.Gray);
+                    freeSpaceStrip.imgControl.Source = freeSpaceStrip.wbmp;
+
+                    DrawFreeSpaceDiagram(freeSpaceStrip);
+                    DrawIntervals(freeSpaceStrip);
+                    DrawLeftPointers(freeSpaceStrip);
+                    DrawRightPointers(freeSpaceStrip);
+                    freeSpaceStack.Children.Add(freeSpaceStrip);
+
+                    result = result.PathPointer;
+                }
+            }
+        }
+
+        private void button1_Click(object sender, RoutedEventArgs e)
+        {
+            if (!initialized)
+                init();
+
+            FileReader fileReader = new FileReader();
+            _path = fileReader.test("./Samples/Vietnam_coords.ipe");
+
+            canvas.Children.Clear();
+            Draw(_graph, Brushes.Turquoise);
+            Draw(_path, Brushes.Black);
+        }
     }
 }
+
 

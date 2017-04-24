@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace Matching_Planar_Maps
 {
-    public class Interval
+    public class Interval : Range
     {
         public Interval()
         {
@@ -24,19 +24,7 @@ namespace Matching_Planar_Maps
 
         public List<float> RightPointers { get; set; } = new List<float>();
 
-        public int PathIndex { get; set; }
-
-        public int GraphIndex { get; set; }
-
         public Interval PathPointer { get; set; }
 
-        public float Start { get; set; }
-
-        public float End { get; set; }
-
-        public bool Empty()
-        {
-            return Start >= End;
-        }
     }
 }

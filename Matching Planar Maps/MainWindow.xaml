@@ -8,25 +8,28 @@
         Title="MainWindow" Height="350" Width="525">
     <Grid>
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="0.5*"></ColumnDefinition>
-            <ColumnDefinition Width="0.5*"></ColumnDefinition>
+            <ColumnDefinition Width="0.4*"></ColumnDefinition>
+            <ColumnDefinition Width="0.6*"></ColumnDefinition>
         </Grid.ColumnDefinitions>
         <Grid.RowDefinitions>
             <RowDefinition Height="*"></RowDefinition>
             <RowDefinition Height="50"></RowDefinition>
         </Grid.RowDefinitions>
         <Canvas x:Name="canvas" Grid.Column="0" Grid.Row="0" Background="white" MouseLeftButtonDown="canvas_MouseLeftButtonDown" />
-        <ScrollViewer Grid.Column="1" Grid.Row="0" VerticalScrollBarVisibility="Auto">
-        <StackPanel x:Name="freeSpaceStack"  Margin="0,50,0,0" >
-            <StackPanel.Resources>
-                <Style TargetType="{x:Type Canvas}">
-                    <Setter Property="Margin" Value="0,10,0,0"/>
-                </Style>
-            </StackPanel.Resources>
-        </StackPanel>
-            </ScrollViewer>
-        <Slider x:Name="slider" Value="42" Grid.Row="1" VerticalAlignment="Top" Grid.ColumnSpan="2" Width="362" ValueChanged="slider_ValueChanged" Maximum="500" TickFrequency="10" Thumb.DragCompleted="slider_DragCompleted" />
+        <ScrollViewer Grid.Column="1" Grid.Row="0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto">
+            <StackPanel x:Name="freeSpaceStack"  Margin="0,50,0,0" >
+                <StackPanel.Resources>
+                    <Style TargetType="{x:Type Canvas}">
+                        <Setter Property="Margin" Value="0,10,0,0"/>
+                    </Style>
+                </StackPanel.Resources>
+            </StackPanel>
+        </ScrollViewer>
+        <Slider x:Name="slider" Value="10" Grid.Row="1" VerticalAlignment="Top" Grid.ColumnSpan="2" Width="362" ValueChanged="slider_ValueChanged" Maximum="200" TickFrequency="10" Thumb.DragCompleted="slider_DragCompleted" />
         <Button x:Name="button" Content="Grid" HorizontalAlignment="Left" Margin="10,20.8,0,0" Grid.Row="1" VerticalAlignment="Top" Width="75" Click="button_Click"/>
+        <Button x:Name="Result" Content="Result" HorizontalAlignment="Left" Margin="90,20.8,0,0" Grid.Row="1" VerticalAlignment="Top" Width="75" Click="Result_Click"/>
+        <Button x:Name="button1" Content="Button" Click="button1_Click" Grid.ColumnSpan="2" Margin="168,20.8,275.4,9.8" Grid.Row="1"/>
+        <Label x:Name="lblEpsilon" Content="-" Grid.Column="1" HorizontalAlignment="Right" Margin="0,0,10.4,9.8" VerticalAlignment="Bottom" Grid.Row="1" RenderTransformOrigin="0.028,1.742"/>
 
     </Grid>
 </Window>

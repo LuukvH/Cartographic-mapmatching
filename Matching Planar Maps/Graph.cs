@@ -30,7 +30,7 @@ namespace Matching_Planar_Maps
             get { return _size; }
         }
 
-        public Vertex[] V => _vertices;
+        public Vertex[] V { get { return _vertices; } set { _vertices = value; } }
 
         public List<int>[] E => _edges;
     }
