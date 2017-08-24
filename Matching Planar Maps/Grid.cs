@@ -1,16 +1,10 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace Matching_Planar_Maps
+﻿namespace Matching_Planar_Maps
 {
     public class GridGraph : Graph
     {
         private int _xSize;
         private int _ySize;
-        private float _spacing;
+        public float _spacing;
 
         public GridGraph(int xSize, int ySize, float spacing) : base(xSize*ySize)
         {
@@ -20,9 +14,19 @@ namespace Matching_Planar_Maps
             GenerateGrid();
         }
 
-        private int GridIndex(int xSize, int x, int y)
+        public int GridIndex(int x, int y)
         {
-            return xSize * y + x;
+            return _xSize * y + x;
+        }
+
+        public int GridX(int value)
+        {
+            return value - (value / _xSize) *_xSize;
+        }
+
+        public int GridY(int value)
+        {
+            return value/_xSize;
         }
 
         private void GenerateGrid()
@@ -32,7 +36,7 @@ namespace Matching_Planar_Maps
             {
                 for (int x = 0; x < _xSize; x++)
                 {
-                    int index = GridIndex(_xSize, x, y);
+                    int index = GridIndex(x, y);
                     Vertex v = new Vertex(x * _spacing, y * _spacing);
                     V[index] = v;
 
@@ -46,8 +50,8 @@ namespace Matching_Planar_Maps
                     // Connect to above
                     if (y > 0)
                     {
-                        E[index].Add(GridIndex(_xSize, x, y - 1));
-                        E[GridIndex(_xSize, x, y - 1)].Add(index);
+                        E[index].Add(GridIndex(x, y - 1));
+                        E[GridIndex(x, y - 1)].Add(index);
                     }
                 }
             }

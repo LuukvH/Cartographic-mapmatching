@@ -1,0 +1,29 @@
+﻿<Window x:Class="Matching_Planar_Maps.GridBuilderWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:Matching_Planar_Maps"
+        mc:Ignorable="d"
+        Title="GridBuilder" Height="166.666" Width="300" ResizeMode="NoResize">
+    <Grid Margin="5">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="0.4*"></ColumnDefinition>
+            <ColumnDefinition Width="0.6*"></ColumnDefinition>
+        </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="30"></RowDefinition>
+            <RowDefinition Height="30"></RowDefinition>
+            <RowDefinition Height="30"></RowDefinition>
+            <RowDefinition Height="30"></RowDefinition>
+        </Grid.RowDefinitions>
+        <Label Grid.Row="0" Grid.Column="0" Content="Width" VerticalAlignment="Center" />
+        <Label Grid.Row="1" Grid.Column="0" Content="Height" VerticalAlignment="Center" />
+        <Label Grid.Row="2" Grid.Column="0" Content="Cell size" VerticalAlignment="Center" />
+        <Button x:Name="btn_Generate" Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="2" Content="Generate" HorizontalAlignment="Stretch" Height="23" Click="btn_Generate_Click"/>
+        <TextBox x:Name="txt_Width" Grid.Row="0" Grid.Column="1" Text="20" Height="23" Width="120" TextAlignment="Right"/>
+        <TextBox x:Name="txt_Height" Grid.Row="1" Grid.Column="1" Text="20" Height="23" Width="120" TextAlignment="Right"/>
+        <TextBox x:Name="txt_CellSize" Grid.Row="2" Grid.Column="1" Text="30" Height="23" Width="120" TextAlignment="Right"/>
+
+    </Grid>
+</Window>
