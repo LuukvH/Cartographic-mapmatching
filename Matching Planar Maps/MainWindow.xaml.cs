@@ -31,7 +31,18 @@ namespace Matching_Planar_Maps
         private const float TOLERANCE = 0.0000001f;
 
         private Polygon inputPolygon;
-        private Polygon outputPolygon;
+
+        private Polygon outputPolygon0;
+        private Polygon outputPolygon1;
+        private Polygon outputPolygon2;
+        private Polygon outputPolygon3;
+        private Polygon outputPolygon4;
+        private Polygon outputPolygon5;
+        private Polygon outputPolygon6;
+        private Polygon outputPolygon7;
+        private Polygon outputPolygon8;
+
+
         private Polygon xorPolygon;
 
         // Free space parameters
@@ -47,10 +58,11 @@ namespace Matching_Planar_Maps
 
         private Interval _result = null;
 
-        private string outputfolder = "Experiment1/";
+        private string outputfolder = "Experiment6/grid_30";
 
         private int reusedEdges = 0;
         private int reusedVertices = 0;
+        public float scale = 1.0f;
 
         public MainWindow()
         {
@@ -58,14 +70,15 @@ namespace Matching_Planar_Maps
 
             System.Windows.Threading.DispatcherTimer dispatcherTimer = new System.Windows.Threading.DispatcherTimer();
             dispatcherTimer.Tick += new EventHandler(dispatcherTimer_Tick);
-            dispatcherTimer.Interval = new TimeSpan(0, 0, 0, 0, 50);
-            //dispatcherTimer.Start();
+            dispatcherTimer.Interval = new TimeSpan(0, 0, 0, 0, 100);
+            dispatcherTimer.Start();
         }
 
         public void init()
         {
             //_graph = new GridGraph(8, 8, 80f);
-            _graph = new GridGraph(51, 51, 1f);
+            _graph = new GridGraph(30, 1f);
+            scale = 500.0f /_graph.GridSize();
 
         }
 
@@ -99,8 +112,6 @@ namespace Matching_Planar_Maps
 
             //return;
 
-            int maxSteps = 20;
-            int steps = 0;
             float minValue = 0;
             //float maxValue = 200;
             float maxValue = 1;
@@ -108,7 +119,7 @@ namespace Matching_Planar_Maps
 
             // Determine max and minvalue
             Console.WriteLine("Epsilon: {0}", epsilon);
-            while (Calculate() == null)
+            while (Calculate() == null )
             {
                 minValue = maxValue;
                 maxValue *= 2;
@@ -904,7 +915,7 @@ namespace Matching_Planar_Maps
         {
             if (lineanimater != null)
             {
-                OutputCanvas.Children.Remove(lineanimater);
+                RenderCanvas.Children.Remove(lineanimater);
             }
 
             if (path != null && path.Count > 0)
@@ -912,8 +923,8 @@ namespace Matching_Planar_Maps
                 currentindex = (currentindex + 1) % (path.Count - 1);
                 int nextindex = (currentindex + 1) % (path.Count - 1);
                 lineanimater = DrawLine(_graph.V[path[currentindex]], _graph.V[path[nextindex]],
-                    Brushes.Red);
-                OutputCanvas.Children.Add(lineanimater);
+                    Brushes.Green);
+                RenderCanvas.Children.Add(lineanimater);
             }
         }
 
@@ -979,10 +990,10 @@ namespace Matching_Planar_Maps
                 {
                     Line line = new Line()
                     {
-                        X1 = graph.V[i].X * 10,
-                        Y1 = graph.V[i].Y * 10,
-                        X2 = graph.V[j].X * 10,
-                        Y2 = graph.V[j].Y * 10,
+                        X1 = graph.V[i].X * scale,
+                        Y1 = graph.V[i].Y * scale,
+                        X2 = graph.V[j].X * scale,
+                        Y2 = graph.V[j].Y * scale,
                         Stroke = brush,
                         StrokeThickness = 1
                     };
@@ -995,10 +1006,10 @@ namespace Matching_Planar_Maps
         {
             Line line = new Line()
             {
-                X1 = v1.X * 10,
-                Y1 = v1.Y * 10,
-                X2 = v2.X * 10,
-                Y2 = v2.Y * 10
+                X1 = v1.X * scale,
+                Y1 = v1.Y * scale,
+                X2 = v2.X * scale,
+                Y2 = v2.Y * scale
             };
             line.Stroke = brush;
             line.StrokeThickness = 2;
@@ -1018,7 +1029,7 @@ namespace Matching_Planar_Maps
 
         public Ellipse DrawCircle(Vertex v, float r, double StrokeThickness, Brush brush)
         {
-            Ellipse ellipse = CreateCircle(new Vertex(v.X * 10, v.Y * 10), r);
+            Ellipse ellipse = CreateCircle(new Vertex(v.X * scale, v.Y * scale), r);
             ellipse.Stroke = brush;
             ellipse.StrokeThickness = StrokeThickness;
             return ellipse;
@@ -1195,22 +1206,51 @@ namespace Matching_Planar_Maps
             }
 
             Graph resultGraph = CreateResultGraph(_result);
-            outputPolygon = new Polygon();
-            Polygon zoomedOutputPolygon = new Polygon();
+            outputPolygon0 = new Polygon();
+            outputPolygon1 = new Polygon();
+            outputPolygon2 = new Polygon();
+            outputPolygon3 = new Polygon();
+            outputPolygon4 = new Polygon();
+            outputPolygon5 = new Polygon();
+            outputPolygon6 = new Polygon();
+            outputPolygon7 = new Polygon();
+            outputPolygon8 = new Polygon();
             foreach (Vertex v in resultGraph.V)
             {
-                outputPolygon.Points.Add(new Point(v.X, v.Y));
-                zoomedOutputPolygon.Points.Add(new Point(v.X * 10, v.Y * 10));
+                outputPolygon0.Points.Add(new Point(v.X - 1, v.Y - 1));
+                outputPolygon1.Points.Add(new Point(v.X - 1, v.Y));
+                outputPolygon2.Points.Add(new Point(v.X - 1, v.Y + 1));
+                outputPolygon3.Points.Add(new Point(v.X, v.Y - 1));
+                outputPolygon4.Points.Add(new Point(v.X, v.Y));
+                outputPolygon5.Points.Add(new Point(v.X, v.Y + 1));
+                outputPolygon6.Points.Add(new Point(v.X + 1, v.Y - 1));
+                outputPolygon7.Points.Add(new Point(v.X + 1, v.Y));
+                outputPolygon8.Points.Add(new Point(v.X + 1, v.Y + 1));
             }
-            zoomedOutputPolygon.Fill = Brushes.Blue;
-            zoomedOutputPolygon.Opacity = 0.25;
-            OutputPolygonCanvas.Children.Add(zoomedOutputPolygon);
+            outputPolygon4.Fill = Brushes.Blue;
+            outputPolygon4.Opacity = 0.25;
+            outputPolygon4.LayoutTransform = new ScaleTransform(scale, scale, 0, 0);
+            OutputPolygonCanvas.Children.Add(outputPolygon4);
 
-           inputPolygon.Stroke = Brushes.Black;
-            outputPolygon.Fill = Brushes.Blue;
+            //outputPolygon0.Fill = Brushes.Purple;
+            //outputPolygon0.Opacity = 0.25;
+            //outputPolygon0.LayoutTransform = new ScaleTransform(scale, scale, 0, 0);
+            //OutputPolygonCanvas.Children.Add(outputPolygon0);
+
+
+            inputPolygon.Stroke = Brushes.Black;
             RenderCanvas.Children.Clear();
-            RenderCanvas.Children.Add(outputPolygon);
             RenderCanvas.Children.Add(inputPolygon);
+
+            RenderCanvas.Children.Add(outputPolygon0);
+            RenderCanvas.Children.Add(outputPolygon1);
+            RenderCanvas.Children.Add(outputPolygon2);
+            RenderCanvas.Children.Add(outputPolygon3);
+            RenderCanvas.Children.Add(outputPolygon5);
+            RenderCanvas.Children.Add(outputPolygon6);
+            RenderCanvas.Children.Add(outputPolygon7);
+            RenderCanvas.Children.Add(outputPolygon8);
+
 
         }
 
@@ -1220,6 +1260,8 @@ namespace Matching_Planar_Maps
 
         private void canvas_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
+            return;
+
             Point p = Mouse.GetPosition(GridCanvas);
 
             Vertex v = new Vertex((float)p.X / 10, (float)p.Y / 10);
@@ -1337,9 +1379,24 @@ namespace Matching_Planar_Maps
 
 
             if (_path == null || _path.Size <= 0)
+            {
+                MessageBox.Show("Press calculate first");
                 return;
+            }
+               
 
+            if (pg4 == null)
+            {
+                MessageBox.Show("Press symmetric button first");
+                return;
+            }
 
+            // Check if path exists otherwise create
+            string path = String.Format("{0}/{1}/pos{2:D2}", outputfolder, currentFile, _current_position);
+            if (!Directory.Exists(path))
+            {
+                System.IO.Directory.CreateDirectory(path);
+            }
 
             // Only input
             SaveAsImage(currentFile);
@@ -1434,39 +1491,50 @@ namespace Matching_Planar_Maps
             combinedImg.Render(dv);
 
             BitmapEncoder pngEncoder;
+            string path = String.Format("{0}/{1}/pos{2:D2}/", outputfolder, currentFile, _current_position);
 
             pngEncoder = new PngBitmapEncoder();
             pngEncoder.Frames.Add(BitmapFrame.Create(inputCrop));
-            using (var fs = System.IO.File.OpenWrite(string.Format("{0}{1}-input.png", outputfolder, filename)))
+            using (var fs = System.IO.File.OpenWrite(string.Format("{0}{1}-input.png", path, filename)))
             {
                 pngEncoder.Save(fs);
             }
 
             pngEncoder = new PngBitmapEncoder();
             pngEncoder.Frames.Add(BitmapFrame.Create(outputPolygonCrop));
-            using (var fs = System.IO.File.OpenWrite(string.Format("{0}{1}-outputPolygon-{2}-{3}-{4}.png", outputfolder, filename, epsilon, reusedEdges, reusedVertices)))
+            using (var fs = System.IO.File.OpenWrite(string.Format("{0}{1}-outputPolygon-{2}-{3}-{4}.png", path, filename, epsilon, reusedEdges, reusedVertices)))
             {
                 pngEncoder.Save(fs);
             }
 
             pngEncoder = new PngBitmapEncoder();
             pngEncoder.Frames.Add(BitmapFrame.Create(outputCrop));
-            using (var fs = System.IO.File.OpenWrite(string.Format("{0}{1}-output-{2}-{3}-{4}.png", outputfolder, filename, epsilon, reusedEdges, reusedVertices)))
+            using (var fs = System.IO.File.OpenWrite(string.Format("{0}{1}-output-{2}-{3}-{4}.png", path, filename, epsilon, reusedEdges, reusedVertices)))
             {
                 pngEncoder.Save(fs);
             }
 
             pngEncoder = new PngBitmapEncoder();
             pngEncoder.Frames.Add(BitmapFrame.Create(detectCrop));
-            using (var fs = System.IO.File.OpenWrite(string.Format("{0}{1}-detect-{2}-{3}-{4}.png", outputfolder, filename, epsilon, reusedEdges, reusedVertices)))
+            using (var fs = System.IO.File.OpenWrite(string.Format("{0}{1}-detect-{2}-{3}-{4}.png", path, filename, epsilon, reusedEdges, reusedVertices)))
             {
                 pngEncoder.Save(fs);
             }
-            SaveOutput(string.Format("{0}{1}-output-{2}.txt", outputfolder, filename, epsilon));
+            SaveOutput(string.Format("{0}{1}-output-{2}.txt", path, filename, epsilon));
 
+            double minimal = pg0.GetArea();
+             minimal = Math.Min(minimal, pg1.GetArea());
+             minimal = Math.Min(minimal, pg2.GetArea());
+             minimal = Math.Min(minimal, pg3.GetArea());
+             minimal = Math.Min(minimal, pg4.GetArea());
+             minimal = Math.Min(minimal, pg5.GetArea());
+             minimal = Math.Min(minimal, pg6.GetArea());
+             minimal = Math.Min(minimal, pg7.GetArea());
+             minimal = Math.Min(minimal, pg8.GetArea());
+            
             pngEncoder = new PngBitmapEncoder();
             pngEncoder.Frames.Add(BitmapFrame.Create(combinedImg));
-            using (var fs = System.IO.File.OpenWrite(string.Format("{0}{1}-full-{2}-{3}.png", outputfolder, filename, epsilon, pg.GetArea())))
+            using (var fs = System.IO.File.OpenWrite(string.Format("{0}{1}-full-{2}-{3}.png", path, filename, epsilon, minimal)))
             {
                 pngEncoder.Save(fs);
             }
@@ -1486,7 +1554,7 @@ namespace Matching_Planar_Maps
 
             pngEncoder = new PngBitmapEncoder();
             pngEncoder.Frames.Add(BitmapFrame.Create(combinedImg));
-            using (var fs = System.IO.File.OpenWrite(string.Format("{0}{1}-result-{2}.png", outputfolder, filename, epsilon)))
+            using (var fs = System.IO.File.OpenWrite(string.Format("{0}{1}-result-{2}.png", path, filename, epsilon)))
             {
                 pngEncoder.Save(fs);
             }
@@ -1584,10 +1652,16 @@ namespace Matching_Planar_Maps
                     fileReader = new TXTReader();
                 }
 
+                _deltaX = 0;
+                _deltaY = 0;
+                _current_position = 0;
+                lbl_curpos.Content = String.Format("current position: {0}", _current_position);
+                
+
                 _path = fileReader.ReadFile(openFileDialog.FileName);
 
-               
-                currentFile = openFileDialog.SafeFileName;
+                FileInfo file = new FileInfo(openFileDialog.FileName);
+                currentFile = System.IO.Path.GetFileNameWithoutExtension(file.Name);
 
                 InputCanvas.Children.Clear();
                 OutputCanvas.Children.Clear();
@@ -1632,8 +1706,8 @@ namespace Matching_Planar_Maps
             }
 
             // Scale factor
-            float hScale = 44 / (xMax - xMin);
-            float vScale = 44 /(yMax - yMin);
+            float hScale = (_graph.GridSize() - 6) / (xMax - xMin);
+            float vScale = (_graph.GridSize() - 6) / (yMax - yMin);
 
             float scale = hScale < vScale ? hScale : vScale;
 
@@ -1671,8 +1745,8 @@ namespace Matching_Planar_Maps
             Vertex center = new Vertex((xMin + xMax) / 2, (yMin + yMax) / 2);
             foreach (Vertex v in _path.V)
             {
-                v.X -= center.X - (44.0f / 2) - 3.0f;
-                v.Y -= center.Y - (44.0f / 2) - 3.0f;
+                v.X -= center.X - ((_graph.GridSize() - 6) / 2) - 3.0f;
+                v.Y -= center.Y - ((_graph.GridSize() - 6) / 2) - 3.0f;
             }
         }
 
@@ -1692,21 +1766,118 @@ namespace Matching_Planar_Maps
             }
         }
 
-        private CombinedGeometry cg;
-        private PathGeometry pg;
+        private CombinedGeometry cg0, cg1, cg2, cg3, cg4, cg5, cg6, cg7, cg8;
+        private PathGeometry pg0, pg1, pg2, pg3, pg4, pg5, pg6, pg7, pg8;
         private void button1_Click(object sender, RoutedEventArgs e)
         {
-            cg = new CombinedGeometry(inputPolygon.RenderedGeometry, outputPolygon.RenderedGeometry);
-            cg.GeometryCombineMode = GeometryCombineMode.Xor;
-             pg = cg.GetFlattenedPathGeometry();
+            if (outputPolygon4 == null)
+            {
+                MessageBox.Show("Please calculate first");
+                return;
+            }
+
+            cg0 = new CombinedGeometry(inputPolygon.RenderedGeometry, outputPolygon0.RenderedGeometry);
+            cg0.GeometryCombineMode = GeometryCombineMode.Xor;
+            pg0 = cg0.GetFlattenedPathGeometry();
+
+            cg1 = new CombinedGeometry(inputPolygon.RenderedGeometry, outputPolygon1.RenderedGeometry);
+            cg1.GeometryCombineMode = GeometryCombineMode.Xor;
+            pg1 = cg1.GetFlattenedPathGeometry();
+
+            cg2 = new CombinedGeometry(inputPolygon.RenderedGeometry, outputPolygon2.RenderedGeometry);
+            cg2.GeometryCombineMode = GeometryCombineMode.Xor;
+            pg2 = cg2.GetFlattenedPathGeometry();
+
+            cg3 = new CombinedGeometry(inputPolygon.RenderedGeometry, outputPolygon3.RenderedGeometry);
+            cg3.GeometryCombineMode = GeometryCombineMode.Xor;
+            pg3 = cg3.GetFlattenedPathGeometry();
+
+            cg4 = new CombinedGeometry(inputPolygon.RenderedGeometry, outputPolygon4.RenderedGeometry);
+            cg4.GeometryCombineMode = GeometryCombineMode.Xor;
+            pg4 = cg4.GetFlattenedPathGeometry();
+
+            cg5 = new CombinedGeometry(inputPolygon.RenderedGeometry, outputPolygon5.RenderedGeometry);
+            cg5.GeometryCombineMode = GeometryCombineMode.Xor;
+            pg5 = cg5.GetFlattenedPathGeometry();
+
+            cg6 = new CombinedGeometry(inputPolygon.RenderedGeometry, outputPolygon6.RenderedGeometry);
+            cg6.GeometryCombineMode = GeometryCombineMode.Xor;
+            pg6 = cg6.GetFlattenedPathGeometry();
+
+            cg7 = new CombinedGeometry(inputPolygon.RenderedGeometry, outputPolygon7.RenderedGeometry);
+            cg7.GeometryCombineMode = GeometryCombineMode.Xor;
+            pg7 = cg7.GetFlattenedPathGeometry();
+
+            cg8 = new CombinedGeometry(inputPolygon.RenderedGeometry, outputPolygon8.RenderedGeometry);
+            cg8.GeometryCombineMode = GeometryCombineMode.Xor;
+            pg8 = cg8.GetFlattenedPathGeometry();
+
+
+
+
+
             System.Windows.Shapes.Path combinedPath = new System.Windows.Shapes.Path();
-            combinedPath.Data = cg;
+            combinedPath.Data = cg4;
             combinedPath.Fill = Brushes.Red;
             Console.Out.WriteLine("Output area: {0}", inputPolygon.RenderedGeometry.GetArea());
-            Console.Out.WriteLine("Symmetric difference: {0}", cg.GetArea());
-            Console.Out.WriteLine("Symmetric difference: {0}", pg.GetArea());
-            combinedPath.LayoutTransform = new ScaleTransform(10, 10, 0, 0);
+            Console.Out.WriteLine("Symmetric difference: {0}", cg4.GetArea());
+            Console.Out.WriteLine("Symmetric difference: {0}", pg4.GetArea());
+            combinedPath.LayoutTransform = new ScaleTransform(scale, scale, 0, 0);
             RenderCanvas.Children.Add(combinedPath);
+        }
+
+        private void Button_Click_1(object sender, RoutedEventArgs e)
+        {
+
+        }
+
+        private int _current_position = 0;
+        private float _deltaX = 0f;
+        private float _deltaY = 0f;
+        private void nextPosition_click(object sender, RoutedEventArgs e)
+        {
+            if (_path == null)
+                return;
+
+            _current_position++;
+
+            if (_current_position >= 25)
+                _current_position = 0;
+
+            lbl_curpos.Content = String.Format("current position: {0}", _current_position);
+
+            float deltaX = (0.25f) * (_current_position % 5);
+            float deltaY = (0.25f) * (float)(Math.Floor(_current_position / 5.0));
+            foreach (Vertex v in _path.V)
+            {
+                v.X += deltaX - _deltaX;
+                v.Y += deltaY - _deltaY;
+            }
+
+            _deltaX = deltaX;
+            _deltaY = deltaY;
+
+            // Generate input polygon
+            inputPolygon = new Polygon();
+            foreach (Vertex v in _path.V)
+            {
+                inputPolygon.Points.Add(new Point(v.X, v.Y));
+            }
+
+            // Reset output etc
+            _result = null;
+            path = null;
+            outputPolygon4 = null;
+            pg4 = null;
+
+            InputCanvas.Children.Clear();
+            OutputCanvas.Children.Clear();
+            DetectCanvas.Children.Clear();
+            OutputPolygonCanvas.Children.Clear();
+            RenderCanvas.Children.Clear();
+
+            Draw(InputCanvas, _path, Brushes.Black);
+
         }
     }
 }

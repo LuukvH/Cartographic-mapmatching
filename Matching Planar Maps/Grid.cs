@@ -2,39 +2,42 @@
 {
     public class GridGraph : Graph
     {
-        private int _xSize;
-        private int _ySize;
+        private int _size;
         public float _spacing;
 
-        public GridGraph(int xSize, int ySize, float spacing) : base(xSize*ySize)
+        public GridGraph(int size, float spacing) : base((size + 1) * (size + 1))
         {
-            this._xSize = xSize;
-            this._ySize = ySize;
+            this._size = size;
             this._spacing = spacing;
             GenerateGrid();
         }
 
+        public int GridSize()
+        {
+            return _size;
+        }
+
         public int GridIndex(int x, int y)
         {
-            return _xSize * y + x;
+            return (_size + 1) * y + x;
         }
 
         public int GridX(int value)
         {
-            return value - (value / _xSize) *_xSize;
+            return value - (value / (_size + 1)) * (_size + 1);
         }
 
         public int GridY(int value)
         {
-            return value/_xSize;
+            return value/ (_size + 1);
         }
 
         private void GenerateGrid()
         {
             // Create vertices
-            for (int y = 0; y < _ySize; y++)
+            for (int y = 0; y < _size + 1; y++)
             {
-                for (int x = 0; x < _xSize; x++)
+                for (int x = 0; x < _size + 1; x++)
                 {
                     int index = GridIndex(x, y);
                     Vertex v = new Vertex(x * _spacing, y * _spacing);

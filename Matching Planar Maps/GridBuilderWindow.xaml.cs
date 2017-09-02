@@ -24,7 +24,7 @@ namespace Matching_Planar_Maps
                 int.TryParse(txt_Height.Text, out heigth) &&
                 float.TryParse(txt_CellSize.Text, out cellSize))
             {
-                Grid = new GridGraph(width, heigth, cellSize);
+                Grid = new GridGraph(width, cellSize);
 
                 DialogResult = true;
                 Close();

@@ -26,7 +26,7 @@ namespace Matching_Planar_Maps
         {
             Vertex intersection1;
             Vertex intersection2;
-            int nrOfIntersections = GraphFunctions.LineCircleIntersections(c.X, c.Y, epsilon, v1, v2, out intersection1,
+            int nrOfIntersections = GraphFunctions.LineCircleIntersections(c, epsilon, v1, v2, out intersection1,
                 out intersection2);
 
             Interval interval = new Interval(1, 0);
@@ -53,7 +53,7 @@ namespace Matching_Planar_Maps
             return interval;
         }
 
-        public static int LineCircleIntersections(float cx, float cy, float radius,
+        public static int LineCircleIntersections(Vertex c, float radius,
             Vertex point1, Vertex point2, out Vertex intersection1, out Vertex intersection2)
         {
             float dx, dy, A, B, C, det, t;
@@ -62,8 +62,8 @@ namespace Matching_Planar_Maps
             dy = point2.Y - point1.Y;
 
             A = dx * dx + dy * dy;
-            B = 2 * (dx * (point1.X - cx) + dy * (point1.Y - cy));
-            C = (point1.X - cx) * (point1.X - cx) + (point1.Y - cy) * (point1.Y - cy) - radius * radius;
+            B = 2 * (dx * (point1.X - c.X) + dy * (point1.Y - c.Y));
+            C = (point1.X - c.X) * (point1.X - c.X) + (point1.Y - c.Y) * (point1.Y - c.Y) - radius * radius;
 
             det = B * B - 4 * A * C;
 
@@ -97,11 +97,11 @@ namespace Matching_Planar_Maps
                 t = (float)((-B - Math.Sqrt(det)) / (2 * A));
                 intersection2 = new Vertex(point1.X + t * dx, point1.Y + t * dy);
 
-                float test1 = GraphFunctions.Distance(point1, new Vertex(cx, cy));
-                float test2 = GraphFunctions.Distance(point2, new Vertex(cx, cy));
+                float test1 = GraphFunctions.Distance(point1, c);
+                float test2 = GraphFunctions.Distance(point2, c);
 
                 // Validate that this solution is on the line
-                if (GraphFunctions.Distance(point1, new Vertex(cx, cy)) <= radius * (1 + TOLERANCE) && GraphFunctions.Distance(point2, new Vertex(cx, cy)) <= radius * (1 + TOLERANCE))
+                if (GraphFunctions.Distance(point1, c) <= radius * (1 + TOLERANCE) && GraphFunctions.Distance(point2, c) <= radius * (1 + TOLERANCE))
                     return 2;
 
                 if (GraphFunctions.Distance(point1, intersection1) + GraphFunctions.Distance(point2, intersection1) > GraphFunctions.Distance(point1, point2) * (1 + TOLERANCE) &&

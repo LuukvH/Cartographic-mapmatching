@@ -52,6 +52,11 @@
             <Label x:Name="lblEpsilon" Content="-" Grid.Column="1" HorizontalAlignment="Right" Margin="0,0,10.4,9.8" VerticalAlignment="Bottom" Grid.Row="1" RenderTransformOrigin="0.028,1.742"/>
             <CheckBox x:Name="DirectSameEdge" Content="DirectSameEdge" Grid.Column="1" HorizontalAlignment="Left" Margin="34.8,23.4,0,11.2" Grid.Row="1" IsChecked="True" Unchecked="DirectSameEdge_Unchecked" Checked="DirectSameEdge_Checked" RenderTransformOrigin="-0.197,1.034"/>
 
+            <StackPanel  Grid.Column="1">
+                <Button  Content="Next position" Height="24" VerticalAlignment="Top" Click="nextPosition_click" ></Button>
+                <Label x:Name="lbl_curpos"  Content="current position: 0"></Label>
+            </StackPanel>
+
         </Grid>
     </DockPanel>
 </Window>
