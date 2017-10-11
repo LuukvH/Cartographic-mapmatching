@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Net;
 using System.Text;
 using System.Windows;
 using System.Windows.Controls;
@@ -19,16 +20,17 @@ namespace Matching_Planar_Maps
     /// </summary>
     public partial class MainWindow : Window
     {
+        private Graph _resultGraph;
         private GridGraph _graph;
-        private Graph _path;
-        
-        private string currentFile = ""; 
+        private Path _path;
+
+        private string currentFile = "";
 
         private bool _debug = false;
 
         private bool _allowSameEdge = true;
 
-        private const float TOLERANCE = 0.0000001f;
+        private const float TOLERANCE = 0.000001f;
 
         private Polygon inputPolygon;
 
@@ -42,7 +44,7 @@ namespace Matching_Planar_Maps
         private Polygon outputPolygon7;
         private Polygon outputPolygon8;
 
-
+        private List<List<int>> possiblePaths = new List<List<int>>();
         private Polygon xorPolygon;
 
         // Free space parameters
@@ -50,7 +52,6 @@ namespace Matching_Planar_Maps
         private int _size = 80;
 
         public float maxDistance = 1;
-        //public float epsilon { get; set; } = 500;
         public float epsilon { get; set; } = 10;
         private Boolean initialized = false;
 
@@ -58,81 +59,126 @@ namespace Matching_Planar_Maps
 
         private Interval _result = null;
 
-        private string outputfolder = "Experiment6/grid_30";
+        private string outputfolder = "Experiment6";
 
         private int reusedEdges = 0;
         private int reusedVertices = 0;
+        private int intersections = 0;
         public float scale = 1.0f;
+
+        private List<int> indexPath;
 
         public MainWindow()
         {
             InitializeComponent();
 
             System.Windows.Threading.DispatcherTimer dispatcherTimer = new System.Windows.Threading.DispatcherTimer();
-            dispatcherTimer.Tick += new EventHandler(dispatcherTimer_Tick);
-            dispatcherTimer.Interval = new TimeSpan(0, 0, 0, 0, 100);
-            dispatcherTimer.Start();
+            //dispatcherTimer.Tick += new EventHandler(dispatcherTimer_Tick);
+            dispatcherTimer.Tick += new EventHandler(possiblePathTimer_Tick);
+            dispatcherTimer.Interval = new TimeSpan(0, 0, 0, 0, 50);
+            //dispatcherTimer.Start();
         }
 
+        private int size = 70;
         public void init()
         {
             //_graph = new GridGraph(8, 8, 80f);
-            _graph = new GridGraph(30, 1f);
-            scale = 500.0f /_graph.GridSize();
+            initialized = true;
+            _graph = new GridGraph(size, 1f);
+            scale = 500.0f / _graph.GridSize();
+            scale *= 1.0f;
 
+            string filename = "./Samples/Vietnam.ipe";
+
+            IFileReader fileReader = new IPEReader();
+
+
+            _deltaX = 0;
+            _deltaY = 0;
+            _current_position = 0;
+            lbl_curpos.Content = String.Format("current position: {0}", _current_position);
+
+            _path = fileReader.ReadFile(filename);
+
+            FileInfo file = new FileInfo(filename);
+            currentFile = System.IO.Path.GetFileNameWithoutExtension(file.Name);
+
+            Normalize();
+            Center();
+
+            //CalculateResult();
         }
 
-        Random random = new Random();
-        public float randomFloat(float maxValue)
+        public void CalculateResult()
         {
-            float randomFloat = (float)random.NextDouble();
-            return randomFloat * maxValue;
+            OutputCanvas.Children.Clear();
+
+            // Generate input polygon
+            inputPolygon = new Polygon();
+            foreach (Vertex v in _path.V)
+            {
+                inputPolygon.Points.Add(new Point(v.X, v.Y));
+            }
+
+            List<int> result = Calculation(_graph, _path);
+            //epsilon = 0.66558f;
+            //epsilon = 0.707f;
+            //List<int> result = BuildIndexPath(MapMatching.Calculate(_graph, _path, epsilon, _allowSameEdge));
+
+            bool[,] mapMatchingCellmap = BuildCellMap(BuildVertexPath(result));
+            bool[,] cellmap = BuildCellMap(BuildVertexPath(result));
+
+            /*
+            while (DetectReuse(result))
+            {
+                cellmap = PushAndPull(result);
+                result = RetraceCellMap(cellmap, result);
+            }*/
+
+            //result = SegmentCutout(result);
+
+
+            DrawResult(result, Brushes.Blue);
+
+            //DetectCanvas.Children.Clear();
+            //DrawCellMap(mapMatchingCellmap, cellmap);
+            DetectReuse(result);
+
+            
+            indexPath = result;
+            Graph graph = new Path(result.Count);
+            List<Vertex> vertexPath = BuildVertexPath(result);
+            graph.V = vertexPath.ToArray();
+            _resultGraph = graph;
+
+            Calculation(graph, _path);
+            
         }
 
-        // Preprocessing
-        public List<Interval>[] FD;
-        private List<Interval>[] B;
-        private List<Interval>[,] L;
-
-        public void Calculation()
+        public List<int> Calculation(Graph graph, Path path)
         {
+
             if (!initialized)
                 init();
 
-            epsilon = 6.838623f;
-            Calculate();
-
-            CreateResultGraph(_result);
-
-            //PostProcessing();
-
-            //DrawResult(_result);
-
-            //ReDraw();
-
-            //return;
-
             float minValue = 0;
-            //float maxValue = 200;
             float maxValue = 1;
-            epsilon = 1;
+            float epsilon = 1;
 
             // Determine max and minvalue
-            Console.WriteLine("Epsilon: {0}", epsilon);
-            while (Calculate() == null )
+            MapMatching mapMatching = new MapMatching();
+            while (mapMatching.Calculate(graph, path, epsilon, _allowSameEdge) == null)
             {
                 minValue = maxValue;
                 maxValue *= 2;
                 epsilon = maxValue;
-                Console.WriteLine("Epsilon: {0}", epsilon);
             }
 
             // Find epsilon between min and max
-            while (maxValue - minValue > 0.0001)
+            while (maxValue - minValue > TOLERANCE)
             {
                 epsilon = (minValue + maxValue) / 2;
-                Console.WriteLine("Epsilon: {0}", epsilon);
-                if (Calculate() != null)
+                if (mapMatching.Calculate(graph, path, epsilon, _allowSameEdge) != null)
                 {
                     maxValue = epsilon;
                 }
@@ -143,758 +189,832 @@ namespace Matching_Planar_Maps
             }
 
             epsilon = maxValue;
-            Calculate();
+            this.epsilon = epsilon;
+            _result = mapMatching.Calculate(graph, path, epsilon, _allowSameEdge);
 
-            CreateResultGraph(_result);
-
+            return BuildIndexPath(_result);
         }
 
-        public Interval Calculate()
-        {
-            Preprocessing();
-
-            return dynamicProgrammingStage();
-        }
-
-        public void Preprocessing()
-        {
-            if (_path == null || _path.Size <= 1)
-                return;
-
-            var watch = new System.Diagnostics.Stopwatch();
-
-            Console.Write("Allocating Memory");
-            watch.Reset();
-            watch.Start();
-            FD = new List<Interval>[_graph.Size];
-            B = new List<Interval>[_graph.Size];
-            watch.Stop();
-            Console.WriteLine(" ({0} ms)", watch.ElapsedMilliseconds);
-
-            Console.Write("Calculating B");
-            watch.Reset();
-            watch.Start();
-            for (int i = 0; i < _graph.Size; i++)
-            {
-                FD[i] = new List<Interval>();
-                B[i] = new List<Interval>();
-                for (int n = 0; n < _path.E.Length; n++)
-                {
-                    // Continue if no outgoing edges
-                    if (_path.E[n].Count <= 0)
-                        continue;
-
-                    Interval interval;
-                    if (n == 0 || n == _path.E.Length - 2)
-                    {
-                        interval = GraphFunctions.CalculateInterval(_path.V[n], _path.V[_path.E[n][0]],
-                            _graph.V[i],
-                            (float)(Math.Sqrt(2) / 2) - TOLERANCE);
-                    }
-                    else
-                    {
-                        interval = GraphFunctions.CalculateInterval(_path.V[n], _path.V[_path.E[n][0]],
-                            _graph.V[i],
-                            epsilon);
-                    }
-
-                    // Offset with index
-                    interval.Start += n;
-                    interval.End += n;
-                    interval.PathIndex = n;
-                    interval.GraphIndex = i;
-
-                    if (!interval.Empty())
-                        FD[i].Add(interval);
-
-                    B[i].Add(interval);
-
-                }
-            }
-            watch.Stop();
-            Console.WriteLine(" ({0} ms)", watch.ElapsedMilliseconds);
-
-            // Calculate L
-            Console.Write("Calculating L");
-            watch.Reset();
-            watch.Start();
-
-            L = new List<Interval>[_graph.Size, _path.Size];
-            for (int i = 0; i < _graph.Size; i++)
-            {
-                for (int p = 0; p < _path.Size; p++)
-                {
-                    L[i, p] = new List<Interval>(4);
-
-                    for (int j = 0; j < _graph.E[i].Count; j++)
-                    {
-                        // Validate if cell is reachable otherwise set interval empty
-                        Interval interval = new Interval(1, 0);
-                        if (p <= 0 || !L[i, p - 1][j].Empty() || !B[i][p - 1].Empty())
-                        {
-                            if (p == 0 || p == _path.E.Length - 2)
-                            {
-                                interval = GraphFunctions.CalculateInterval(_graph.V[i], _graph.V[_graph.E[i][j]],
-                                   _path.V[p], (float)(Math.Sqrt(2) / 2) - TOLERANCE);
-                            }
-                            else
-                            {
-                                interval = GraphFunctions.CalculateInterval(_graph.V[i], _graph.V[_graph.E[i][j]],
-                                    _path.V[p], epsilon);
-                            }
-                        }
-
-                        L[i, p].Add(interval);
-                    }
-                }
-            }
-            watch.Stop();
-            Console.WriteLine(" ({0} ms)", watch.ElapsedMilliseconds);
-
-            Console.Write("Calculating LeftPointers");
-            watch.Reset();
-            watch.Start();
-            LeftPointers();
-            watch.Stop();
-            Console.WriteLine(" ({0} ms)", watch.ElapsedMilliseconds);
-
-            Console.Write("Calculating RightPointers");
-            watch.Reset();
-            watch.Start();
-            RightPointers();
-            watch.Stop();
-            Console.WriteLine(" ({0} ms)", watch.ElapsedMilliseconds);
-        }
-
-        public void LeftPointers()
-        {
-            for (int i = 0; i < _graph.Size; i++)
-            {
-                for (int j = 0; j < _graph.E[i].Count; j++)
-                {
-                    // For each white intervall in FDi calculate left pointers
-                    foreach (Interval interval in FD[i])
-                    {
-
-                        float leftpointer = float.NaN;
-                        int k = interval.PathIndex;
-                        float max_ai = 0; //L[i, k][j].Start;
-
-                        if (B[i][k].Start <= B[_graph.E[i][j]][k].End && !B[_graph.E[i][j]][k].Empty())
-                        {
-                            leftpointer = Math.Max(B[i][k].Start, B[_graph.E[i][j]][k].Start);
-                        }
-                        else
-                        {
-                            for (int n = k + 1; n < _path.Size - 1; n++)
-                            {
-                                // Can move to this cell in a monetone path
-                                if (!L[i, n][j].Empty() && L[i, n][j].End >= max_ai)
-                                {
-                                    if (B[_graph.E[i][j]][n].Start > B[_graph.E[i][j]][n].End)
-                                    {
-                                        max_ai = Math.Max(L[i, n][j].Start, max_ai);
-                                    }
-                                    else
-                                    {
-                                        leftpointer = B[_graph.E[i][j]][n].Start;
-                                        break;
-                                    }
-                                }
-                                else
-                                {
-                                    break;
-                                }
-                            }
-                        }
-
-                        interval.LeftPointers.Add(leftpointer);
-                    }
-                }
-            }
-        }
-
-        public void RightPointers()
-        {
-            for (int i = 0; i < _graph.Size; i++)
-            {
-                if (!FD[i].Any())
-                    continue;
-
-                for (int j = 0; j < _graph.E[i].Count; j++)
-                {
-                    //if (!FD[_graph.E[i][j]].Any())
-                    //{
-                    //    for (int n = 0; n < FD[i].Count; n++)
-                    //    {
-                    //        FD[i][n].RightPointers.Add(float.NaN);
-                    //    }
-                    //    break;
-                    //}
-
-                    List<int> S = new List<int>();
-                    int kp = 1;
-                    float ai1 = 0f;
-                    S.Add(0);
-                    for (int k = 0; k < _path.Size - 1; k++)
-                    {
-                        kp = k;
-
-                        while (kp < _path.Size - 1)
-                        {
-                            if (ai1 > L[i, kp + 1][j].End || kp + 1 == _path.Size - 1 || L[i, kp + 1][j].Empty())
-                            {
-                                // Maximal kp that fulfills (1)
-                                int w = kp;
-
-                                // Search white point to the left of kp + 1;
-                                while (w > 0)
-                                {
-                                    if (!B[_graph.E[i][j]][w].Empty())
-                                    {
-                                        break;
-                                    }
-                                    w--;
-                                }
-
-                                if (k < w)
-                                {
-                                    B[i][k].RightPointers.Add(B[_graph.E[i][j]][w].End);
-                                }
-                                else if (k > w)
-                                {
-                                    B[i][k].RightPointers.Add(float.NaN);
-                                }
-                                else
-                                {
-                                    if (!B[_graph.E[i][j]][k].Empty() && B[i][k].Start <= B[_graph.E[i][j]][k].End)
-                                    {
-                                        B[i][k].RightPointers.Add(B[_graph.E[i][j]][k].End);
-                                    }
-                                    else
-                                    {
-                                        B[i][k].RightPointers.Add(float.NaN);
-                                    }
-                                }
-
-                                // Remove bottom element of queue
-                                if (S.Any() && S.First() == k + 1)
-                                {
-                                    S.RemoveAt(0);
-                                    if (!S.Any())
-                                    {
-                                        ai1 = 0f;
-                                    }
-                                    else
-                                    {
-                                        ai1 = L[i, S[0]][j].Start;
-                                    }
-                                }
-                                //k = kp;
-                                break;
-                            }
-                            else
-                            {
-                                kp++;
-
-                                // Pop topmost values from S until aim > ak'
-                                while (S.Any() && L[i, S.Last()][j].Start > L[i, kp][j].Start)
-                                {
-                                    S.Remove(S.Last());
-                                    if (!S.Any())
-                                    {
-                                        ai1 = 0f;
-                                    }
-                                }
-                                S.Add(kp);
-                            }
-                        }
-
-                    }
-                }
-            }
-        }
-
-        public Interval dynamicProgrammingStage()
-        {
-            //////////////////////////
-            // Initialization phase //
-            //////////////////////////
-            List<Interval> Q = new List<Interval>();
-            Range[] C = new Range[_graph.Size];
-            Interval result = null;
-            float x = 0;
-
-            int case1 = 0;
-            int case2 = 0;
-            int case3 = 0;
-
-            // Fill c
-            for (int c = 0; c < C.Length; c++)
-            {
-                C[c] = new Range();
-                C[c].GraphIndex = c;
-            }
-
-            // Initialize Q
-            for (int i = 0; i < _graph.Size; i++)
-            {
-                if (FD[i].Count > 0 && !FD[i][0].Empty() && FD[i][0].Start < TOLERANCE)
-                {
-                    Q.Add(FD[i][0]);
-                    C[i].Start = FD[i][0].Start;
-                    C[i].End = FD[i][0].End;
-                }
-            }
-
-            // Init Q
-            if (_debug)
-            {
-                Console.WriteLine("-- Init Q --");
-                print(Q);
-
-                Console.WriteLine("-- Init Ci --");
-                print(C);
-            }
-
-            // If q is not empty continue otherwise no path exists
-            while (Q.Any() && result == null)
-            {
-                // Sort q to priority
-                Q = Q.OrderBy(q => q.Start).ToList();
-
-                // Step 1 extract leftmost interval
-                Interval I = Q.First(); // Get first interval
-                Q.Remove(Q.First()); // Remove fist interval
-                x = I.Start; // Advance x to l(I)
-                if (_debug)
-                {
-                    Console.WriteLine("x: " + x);
-                }
-
-                // Step 2 
-                // Insert the next white interval of Ci which lies to right of I into Q
-                for (int i = 0; i < FD[I.GraphIndex].Count; i++) // Search to the right for first white interval
-                {
-                    if (FD[I.GraphIndex][i].Start > I.Start && FD[I.GraphIndex][i].Start < C[I.GraphIndex].End)
-                    {
-                        Q.Add(FD[I.GraphIndex][i]);
-
-                        if (FD[I.GraphIndex][i].PathPointer == null)
-                        {
-                            Console.WriteLine(i);
-                        }
-
-                        Q = Q.OrderBy(q => q.Start).ToList(); // Should be log n
-                        break;
-                    }
-                }
-
-                // Step 3 / 4
-                // Find all adjacent edges
-                for (int j = 0; j < _graph.E[I.GraphIndex].Count; j++)
-                {
-
-                    Range cj = C[_graph.E[I.GraphIndex][j]];
-                    float lfttend = cj.Start;
-
-                    // Disallow going back on same edge
-                    if (I.PathPointer != null && _graph.E[I.GraphIndex][j] == I.PathPointer.GraphIndex && !_allowSameEdge)
-                        continue;
-
-                    if (float.IsNaN(I.LeftPointers[j]))
-                        continue;
-
-                    if (I.LeftPointers[j] > cj.End || float.IsNaN(cj.End))
-                    {
-                        case1++;
-
-                        C[_graph.E[I.GraphIndex][j]] = new Range(I.LeftPointers[j], I.RightPointers[j]);
-                        C[_graph.E[I.GraphIndex][j]].GraphIndex = cj.GraphIndex;
-                        cj = C[_graph.E[I.GraphIndex][j]];
-
-                        foreach (Interval q in Q)
-                        {
-                            if (q.GraphIndex == cj.GraphIndex)
-                            {
-                                Q.Remove(q);
-                                break;
-                            }
-                        }
-
-                        // Insert new interval 
-                        bool first = true;
-                        for (int i = 0; i < FD[_graph.E[I.GraphIndex][j]].Count; i++)
-                        {
-
-                            if (FD[_graph.E[I.GraphIndex][j]][i].Start >= cj.Start && FD[_graph.E[I.GraphIndex][j]][i].Start <= cj.End)
-                            {
-                                if (first)
-                                {
-                                    Q.Add(FD[_graph.E[I.GraphIndex][j]][i]);
-                                    first = false;
-                                }
-
-                                if (Math.Abs(FD[_graph.E[I.GraphIndex][j]][i].Start) > TOLERANCE)
-                                {
-                                    FD[_graph.E[I.GraphIndex][j]][i].PathPointer = FD[_graph.E[I.GraphIndex][j]][i].PathPointer ?? I;
-                                }
-                            }
-                        }
-                    }
-
-                    // If left point changed delete old interval of cj in q
-                    if (float.IsNaN(lfttend) || Math.Abs(lfttend - cj.Start) > TOLERANCE)
-                    {
-                        case2++;
-
-                        // Remove old cj
-                        foreach (Interval q in Q)
-                        {
-                            if (q.GraphIndex == cj.GraphIndex)
-
-                            {
-                                Q.Remove(q);
-                                break;
-                            }
-                        }
-
-                        // Insert new interval cj
-                        bool first = true;
-                        for (int i = 0; i < FD[_graph.E[I.GraphIndex][j]].Count; i++)
-                        {
-
-                            if (FD[_graph.E[I.GraphIndex][j]][i].Start >= cj.Start && FD[_graph.E[I.GraphIndex][j]][i].Start <= cj.End)
-                            {
-                                if (first)
-                                {
-                                    Q.Add(FD[_graph.E[I.GraphIndex][j]][i]);
-                                    first = false;
-                                }
-
-                                if (Math.Abs(FD[_graph.E[I.GraphIndex][j]][i].Start) > TOLERANCE)
-                                {
-                                    FD[_graph.E[I.GraphIndex][j]][i].PathPointer = FD[_graph.E[I.GraphIndex][j]][i].PathPointer ?? I;
-                                }
-                            }
-                        }
-                    }
-
-                    // If rightpoint has changed
-                    if (I.RightPointers[j] > cj.End)
-                    {
-                        case3++;
-
-                        cj.End = I.RightPointers[j];
-                        //cj.PathPointer = I;
-
-                        // Insert new interval cj
-
-                        bool first = Q.All(c => c.GraphIndex != cj.GraphIndex);
-                        for (int i = 0; i < FD[_graph.E[I.GraphIndex][j]].Count; i++)
-                        {
-
-                            if (FD[_graph.E[I.GraphIndex][j]][i].Start >= cj.Start && FD[_graph.E[I.GraphIndex][j]][i].Start <= cj.End)
-                            {
-                                if (first)
-                                {
-                                    Q.Add(FD[_graph.E[I.GraphIndex][j]][i]);
-                                    first = false;
-                                }
-
-                                if (Math.Abs(FD[_graph.E[I.GraphIndex][j]][i].Start) > TOLERANCE)
-                                {
-                                    FD[_graph.E[I.GraphIndex][j]][i].PathPointer = FD[_graph.E[I.GraphIndex][j]][i].PathPointer ?? I;
-                                }
-                            }
-                        }
-                    }
-
-                    // Set result if endpoint reached
-                    // Console.WriteLine("Rightpointer values: " + rightPointers[cj.PathIndex, cj.GraphIndex]);
-                    if (cj.End >= _path.Size - 1 - TOLERANCE)
-                    {
-                        try
-                        {
-                            result = Q.First(i => i.GraphIndex == cj.GraphIndex);
-                        }
-                        catch
-                        {
-                        }
-                    }
-
-                }
-
-                // Print q
-                if (_debug)
-                {
-                    Console.WriteLine("-- Show Q --");
-                    print(Q);
-
-
-                    // Print c
-                    Console.WriteLine("-- Show C --");
-                    print(C);
-                }
-            }
-
-            if (result != null)
-            {
-                _result = result;
-                Console.WriteLine("Feasable path exists");
-
-            }
-            else
-            {
-                _result = null;
-                Console.WriteLine("No feasable path exists");
-            }
-
-            Console.WriteLine("Case1: " + case1);
-            Console.WriteLine("Case2: " + case2);
-            Console.WriteLine("Case3: " + case3);
-
-
-            return _result;
-        }
-
-        public float CalculateFrechetDistance()
-        {
-            Interval[,] B = new Interval[_path.Size + 1, _graph.Size + 1];
-            Interval[,] BR = new Interval[_path.Size + 1, _graph.Size + 1];
-            float[,] LR = new float[_path.Size + 1, _graph.Size + 1];
-
-            for (int i = 0; i < _path.E.Length; i++)
-            {
-                for (int j = 0; j < _graph.Size; j++)
-                {
-                    // Continue if no outgoing edges
-                    if (_path.E[i].Count <= 0)
-                        continue;
-
-                    Interval interval = GraphFunctions.CalculateInterval(_path.V[i], _path.V[_path.E[i][0]], _graph.V[j],
-                        epsilon);
-
-                    // Offset with index
-                    interval.Start += i;
-                    interval.End += i;
-                    interval.PathIndex = i;
-                    interval.GraphIndex = i;
-
-                    B[i, j] = interval;
-                }
-            }
-
-            // Horizontal (path)
-            for (int i = 0; i < _path.Size; i++)
-            {
-                BR[i, 0] = new Interval();
-            }
-
-            // Vertical (graph)
-            for (int j = 0; j < _graph.Size; j++)
-            {
-
-            }
-
-            for (int i = 1; i < _path.Size; i++)
-            {
-                for (int j = 1; j < _graph.Size; j++)
-                {
-                    BR[i, j] = new Interval();
-                    BR[i, j].Start = Math.Max(BR[i - 1, j - 1].Start, B[i, j].Start);
-                }
-            }
-            return 0.5f;
-        }
-
-
-        public Graph CreateResultGraph(Interval result)
+        public List<int> BuildIndexPath(Interval result)
         {
             if (result == null)
                 return null;
 
-            List<Vertex> vertices = new List<Vertex>();
+            List<int> indexPath = new List<int>();
             while (result != null)
             {
-                vertices.Add(_graph.V[result.GraphIndex]);
+                indexPath.Add(result.GraphIndex);
                 result = result.PathPointer;
             }
-
-            // Add all vertices to graph
-            vertices.Reverse();
-            Graph graph = new Graph(vertices.Count);
-            graph.V = vertices.ToArray();
-
-            // Add all edges
-            for (int i = 0; i < graph.Size - 1; i++)
-            {
-                graph.E[i].Add(i + 1);
-            }
-
-            return graph;
+            indexPath.Reverse();
+            return indexPath;
         }
 
-        public void DetectSameEdges()
+        public List<Vertex> BuildVertexPath(List<int> indexPath)
         {
-            PostProcessing();
+            List<Vertex> vertexPath = new List<Vertex>();
+            for (int i = 0; i < indexPath.Count; i++)
+            {
+                vertexPath.Add(new Vertex(_graph.V[indexPath[i]].X, _graph.V[indexPath[i]].Y));
+            }
+            return vertexPath;
         }
 
-        private List<int> path;
-
-        public void PostProcessing()
+        public bool[,] PushAndPull(List<int> indexPath)
         {
-            // Build graph based on grid
-            Graph resultGraph = new Graph(_graph.Size);
-            resultGraph.V = _graph.V;
+            // Build vertexpath
+            List<Vertex> vertexPath = BuildVertexPath(indexPath);
 
-            path = new List<int>();
-            Interval result = _result;
-            while (result != null && result.PathPointer != null)
+            bool[,] cellmap = BuildCellMap(vertexPath);
+
+            // Remove reused edges
+            for (int i = 1; i < indexPath.Count; i++)
             {
-                path.Add(result.PathPointer.GraphIndex);
-                resultGraph.E[result.GraphIndex].Add(result.PathPointer.GraphIndex);
-                result = result.PathPointer;
-            }
-
-            //Draw(OutputCanvas, resultGraph, Brushes.Blue);
-
-            // Reset counts
-            reusedEdges = 0;
-            reusedVertices = 0;
-
-            // Detect reuse of edges
-            for (int i = 1; i < path.Count; i++)
-            {
-                for (int n = i + 1; n < path.Count; n++)
+                for (int n = i + 1; n < indexPath.Count; n++)
                 {
-                    if ((path[i] == path[n] && path[i - 1] == path[n - 1]) ||
-                        (path[i - 1] == path[n] && path[i] == path[n - 1]))
+                    if ((indexPath[i] == indexPath[n] && indexPath[i - 1] == indexPath[n - 1]) ||
+                        (indexPath[i - 1] == indexPath[n] && indexPath[i] == indexPath[n - 1]))
                     {
-                        // Indicate reuse of edges
-                        DetectCanvas.Children.Add(DrawLine(resultGraph.V[path[i - 1]], resultGraph.V[path[i]], Brushes.Red));
+                        GridGraph gg = (_graph as GridGraph);
 
-                        reusedEdges++;
+                        int v1 = indexPath[i - 1];
+                        int x1 = gg.GridX(v1);
+                        int y1 = gg.GridY(v1);
 
-                        //int v1 = path[i];
-                        //int v2 = path[i - 1];
+                        int v2 = indexPath[i];
+                        int x2 = gg.GridX(v2);
+                        int y2 = gg.GridY(v2);
 
-                        //int x = (_graph as GridGraph).GridX(path[i]);
-                        //int y = (_graph as GridGraph).GridY(path[i]) + 1;
-                        //int index = (_graph as GridGraph).GridIndex(x, y);
-
-                        //int x2 = (_graph as GridGraph).GridX(path[i - 1]);
-                        //int y2 = (_graph as GridGraph).GridY(path[i - 1]) + 1;
-                        //int index2 = (_graph as GridGraph).GridIndex(x2, y2);
-
-                        //DetectCanvas.Children.Add(DrawLine(resultGraph.V[index], resultGraph.V[index2], Brushes.Purple));
-
-                        //path[i] = index;
-                        //path[i - 1] = index2;
-
-                        //if (v1 != path[i + 1])
-                        //    path.Insert(i + 1, v1);
-
-                        //if (path[i - 1] == path[i - 2])
-                        //{
-                        //    path.RemoveAt(i - 1);
-                        //}
-                    }
-                }
-            }
-
-            // Remove direct edge return
-            //for (int i = 1; i < path.Count - 1; i++)
-            //{
-            //    // Remove direct edge return
-            //    if (path[i - 1] == path[i + 1])
-            //    {
-            //        path.RemoveAt(i);
-            //        i--;
-            //    }
-
-            //    // Remove double vertices
-            //    if (path[i] == path[i - 1])
-            //    {
-            //        path.RemoveAt(i);
-            //        i--;
-            //    }
-            //}
-
-            //for (int i = 1; i < path.Count; i++)
-            //{
-            //    DetectCanvas.Children.Add(DrawLine(resultGraph.V[path[i - 1]], resultGraph.V[path[i]], Brushes.Yellow));
-            //}
-
-            /*
-                // Detect reuse of edge
-                for (int v = 0; v < resultGraph.Size; v++)
-                {
-                    foreach (int edge in resultGraph.E[v])
-                    {
-                        // Is a duplicate edge
-                        if (resultGraph.E[edge].Contains(v))
+                        // Horizontal
+                        Vertex c1 = null;
+                        Vertex c2 = null;
+                        if (_graph.V[v1].X.Equals(_graph.V[v2].X))
                         {
-                            canvas.Children.Add(DrawLine(resultGraph.V[v], resultGraph.V[edge], Brushes.Red));
+                            c1 = new Vertex(((_graph.V[v1].X + _graph.V[v2].X) / 2) + 0.5f,
+                                ((_graph.V[v1].Y + _graph.V[v2].Y) / 2));
+                            c2 = new Vertex(((_graph.V[v1].X + _graph.V[v2].X) / 2) - 0.5f,
+                                ((_graph.V[v1].Y + _graph.V[v2].Y) / 2));
+                        }
+                        else if (_graph.V[v1].Y.Equals(_graph.V[v2].Y))
+                        {
+                            c1 = new Vertex(((_graph.V[v1].X + _graph.V[v2].X) / 2), ((_graph.V[v1].Y + _graph.V[v2].Y) / 2) - 0.5f);
+                            c2 = new Vertex(((_graph.V[v1].X + _graph.V[v2].X) / 2), ((_graph.V[v1].Y + _graph.V[v2].Y) / 2) + 0.5f);
+                        }
 
-                            // When horizontal then push up
-                            int x = (_graph as GridGraph).GridX(edge);
-                            int y = (_graph as GridGraph).GridY(edge) - 1;
-                            int index = (_graph as GridGraph).GridIndex(x, y);
+                        int count1 = SurroundingCount(c1, vertexPath);
+                        int count2 = SurroundingCount(c2, vertexPath);
 
-                            int x2 = (_graph as GridGraph).GridX(v);
-                            int y2 = (_graph as GridGraph).GridY(v) - 1;
-                            int index2 = (_graph as GridGraph).GridIndex(x2, y2);
-
-                            canvas.Children.Add(DrawLine(resultGraph.V[index], resultGraph.V[index2], Brushes.Purple));
+                        // If both are inside remove the vertex
+                        if (IsPointInPolygon(c1, vertexPath) && IsPointInPolygon(c2, vertexPath))
+                        {
+                            if (count1 < count2)
+                            {
+                                cellmap[(int)Math.Floor(c1.X), (int)Math.Floor(c1.Y)] = false;
+                                //DetectCanvas.Children.Add(DrawCircle(c1, 5, 4, Brushes.Red));
+                                break;
+                            }
+                            else if (count2 < count1)
+                            {
+                                cellmap[(int)Math.Floor(c2.X), (int)Math.Floor(c2.Y)] = false;
+                                //DetectCanvas.Children.Add(DrawCircle(c2, 5, 4, Brushes.Red));
+                                break;
+                            }
+                            else
+                            {
+                                cellmap[(int)Math.Floor(c1.X), (int)Math.Floor(c1.Y)] = false;
+                                //cellmap[(int)Math.Floor(c2.X), (int)Math.Floor(c2.Y)] = false;
+                                //DetectCanvas.Children.Add(DrawCircle(c1, 5, 4, Brushes.Red));
+                                //DetectCanvas.Children.Add(DrawCircle(c2, 5, 4, Brushes.Red));
+                                break;
+                            }
+                        }
+                        else
+                        {
+                            if (count1 > count2)
+                            {
+                                cellmap[(int)Math.Floor(c1.X), (int)Math.Floor(c1.Y)] = true;
+                                break;
+                            }
+                            else if (count2 > count1)
+                            {
+                                cellmap[(int)Math.Floor(c2.X), (int)Math.Floor(c2.Y)] = true;
+                                break;
+                            }
+                            else
+                            {
+                                cellmap[(int)Math.Floor(c1.X), (int)Math.Floor(c1.Y)] = true;
+                                cellmap[(int)Math.Floor(c2.X), (int)Math.Floor(c2.Y)] = true;
+                                break;
+                            }
                         }
                     }
                 }
-                */
+            }
 
-
+            // Remove reused vertices
             // Detect reuse of vertices
-            var duplicates = path.GroupBy(i => i)
+            var duplicates = indexPath.GroupBy(i => i)
                 .Where(g => g.Count() > 1)
                 .Select(g => g.Key).ToList();
             foreach (int v in duplicates)
             {
-                DetectCanvas.Children.Add(DrawCircle(resultGraph.V[v], 6.0f, 2, Brushes.Red));
-                reusedVertices++;
-            }
-        }
+                Console.Out.WriteLine(v);
 
-        public void print(List<Interval> Q)
-        {
-            for (int i = 0; i < Q.Count; i++)
-            {
-                Interval interval = Q[i];
-                Console.Write(String.Format("{0}: p: {1}, g: {2}, s: {3} e: {4}, ",
-                   i, interval.PathIndex, interval.GraphIndex, interval.Start, interval.End));
+                int vi1 = _graph.GridIndex(_graph.GridX(v) - 1, _graph.GridY(v) - 1);
+                int vi2 = _graph.GridIndex(_graph.GridX(v), _graph.GridY(v) - 1);
+                int vi3 = _graph.GridIndex(_graph.GridX(v) - 1, _graph.GridY(v));
+                int vi4 = _graph.GridIndex(_graph.GridX(v), _graph.GridY(v));
 
-                for (int n = 0; n < interval.LeftPointers.Count; n++)
+                Vertex v1 = _graph.V[vi1] + new Vertex(0.5f, 0.5f);
+                Vertex v2 = _graph.V[vi2] + new Vertex(0.5f, 0.5f);
+                Vertex v3 = _graph.V[vi3] + new Vertex(0.5f, 0.5f);
+                Vertex v4 = _graph.V[vi4] + new Vertex(0.5f, 0.5f);
+
+                if (indexPath.IndexOf(v) - 1 <= 0 || indexPath.IndexOf(v) + 1 >= indexPath.Count)
+                    continue;
+
+                int vp = indexPath[indexPath.IndexOf(v) - 1];
+                int vn = indexPath[indexPath.IndexOf(v) + 1];
+
+                int vgrid1 = _graph.GridIndex(_graph.GridX(v), _graph.GridY(v) - 1);
+                int vgrid2 = _graph.GridIndex(_graph.GridX(v) + 1, _graph.GridY(v));
+                int vgrid3 = _graph.GridIndex(_graph.GridX(v), _graph.GridY(v) + 1);
+                int vgrid4 = _graph.GridIndex(_graph.GridX(v) - 1, _graph.GridY(v));
+
+                Vertex vg1 = null, vg2 = null;
+                Vertex vr1 = null, vr2 = null;
+
+                if (cellmap[(int)Math.Floor(v1.X), (int)Math.Floor(v1.Y)] == false
+                    &&
+                    cellmap[(int)Math.Floor(v4.X), (int)Math.Floor(v4.Y)] == false
+                    &&
+                    cellmap[(int)Math.Floor(v2.X), (int)Math.Floor(v2.Y)] == true
+                    &&
+                    cellmap[(int)Math.Floor(v3.X), (int)Math.Floor(v3.Y)] == true)
                 {
-                    Console.Write(String.Format("[{0}] l: {1}: r: {2}, ", _graph.E[interval.GraphIndex][n], interval.LeftPointers[n],
-                        interval.RightPointers[n]));
-                }
-                Console.WriteLine();
-            }
-        }
+                    vg1 = v1;
+                    vg2 = v4;
+                    vr1 = v2;
+                    vr2 = v3;
 
-        public void print(Range[] C)
-        {
-            for (int i = 0; i < C.Length; i++)
-            {
-                Range range = C[i];
-                if (!range.Empty())
-                {
-                    if (!float.IsNaN(range.Start) || !float.IsNaN(range.End))
+                    if (vp == vgrid1 && vn == vgrid2 || vp == vgrid2 && vn == vgrid1 || vp == vgrid4 && vn == vgrid3 ||
+                        vp == vgrid3 && vn == vgrid4)
                     {
-                        Console.Write(String.Format("{0}: l: {1:0.0000} r: {2:0.0000}, ", i, C[i].Start, C[i].End));
-                        Console.WriteLine();
+                        int count1 = SurroundingCount(vr1, vertexPath);
+                        int count2 = SurroundingCount(vr2, vertexPath);
+
+                        if (count1 <= count2)
+                        {
+                            cellmap[(int)Math.Floor(vr1.X), (int)Math.Floor(vr1.Y)] = false;
+                        }
+                        else
+                        {
+                            cellmap[(int)Math.Floor(vr2.X), (int)Math.Floor(vr2.Y)] = false;
+                        }
+                    }
+                    else
+                    {
+                        int count1 = SurroundingCount(vg1, vertexPath);
+                        int count2 = SurroundingCount(vg2, vertexPath);
+
+                        if (count1 >= count2)
+                        {
+                            cellmap[(int)Math.Floor(vg1.X), (int)Math.Floor(vg1.Y)] = true;
+                        }
+                        else
+                        {
+                            cellmap[(int)Math.Floor(vg2.X), (int)Math.Floor(vg2.Y)] = true;
+                        }
+                    }
+                }
+
+                if (cellmap[(int)Math.Floor(v1.X), (int)Math.Floor(v1.Y)] == true
+                    &&
+                    cellmap[(int)Math.Floor(v4.X), (int)Math.Floor(v4.Y)] == true
+                    &&
+                    cellmap[(int)Math.Floor(v2.X), (int)Math.Floor(v2.Y)] == false
+                    &&
+                    cellmap[(int)Math.Floor(v3.X), (int)Math.Floor(v3.Y)] == false)
+                {
+                    vg1 = v2;
+                    vg2 = v3;
+                    vr1 = v1;
+                    vr2 = v4;
+
+                    if (vp == vgrid1 && vn == vgrid2 || vp == vgrid2 && vn == vgrid1 || vp == vgrid4 && vn == vgrid3 ||
+                        vp == vgrid3 && vn == vgrid4)
+                    {
+                        int count1 = SurroundingCount(vg1, vertexPath);
+                        int count2 = SurroundingCount(vg2, vertexPath);
+
+                        if (count1 >= count2)
+                        {
+                            cellmap[(int)Math.Floor(vg1.X), (int)Math.Floor(vg1.Y)] = true;
+                        }
+                        else
+                        {
+                            cellmap[(int)Math.Floor(vg2.X), (int)Math.Floor(vg2.Y)] = true;
+                        }
+                    }
+                    else
+                    {
+                        int count1 = SurroundingCount(vr1, vertexPath);
+                        int count2 = SurroundingCount(vr2, vertexPath);
+
+                        if (count1 <= count2)
+                        {
+                            cellmap[(int)Math.Floor(vr1.X), (int)Math.Floor(vr1.Y)] = false;
+                        }
+                        else
+                        {
+                            cellmap[(int)Math.Floor(vr2.X), (int)Math.Floor(vr2.Y)] = false;
+                        }
                     }
                 }
             }
+            return cellmap;
+        }
+
+
+        public bool[,] BuildCellMap(List<Vertex> vertexPath)
+        {
+            // Build cell map
+            bool[,] cellmap = new bool[_graph.GridSize(), _graph.GridSize()];
+            for (int x = 0; x < _graph.GridSize(); x++)
+            {
+                for (int y = 0; y < _graph.GridSize(); y++)
+                {
+                    if (IsPointInPolygon(new Vertex(x + 0.5f, y + 0.5f), vertexPath))
+                        cellmap[x, y] = true;
+                }
+            }
+            return cellmap;
+        }
+
+        public void DrawCellMap(bool[,] cellmap, bool[,] cellmap2)
+        {
+            for (int x = 1; x < _graph.GridSize() - 1; x++)
+            {
+                for (int y = 1; y < _graph.GridSize() - 1; y++)
+                {
+                    if (cellmap[x, y] == true && cellmap2[x, y] == false)
+                    {
+                        DetectCanvas.Children.Add(DrawCell(new Vertex(x, y), Brushes.Red));
+                    }
+                    else if (cellmap[x, y] == false && cellmap2[x, y] == true)
+                    {
+                        DetectCanvas.Children.Add(DrawCell(new Vertex(x, y), Brushes.Green));
+                    }
+                }
+            }
+        }
+
+        public
+            List<int> RetraceCellMap(bool[,] cellmap, List<int> indexPath)
+        {
+            List<int> retracedIndexPath = new List<int>();
+            retracedIndexPath.Add(indexPath[0]);
+            retracedIndexPath.Add(indexPath[1]);
+
+            int size = 0;
+            while (size != retracedIndexPath.Count && retracedIndexPath[0] != retracedIndexPath[retracedIndexPath.Count - 1])
+            {
+                size = retracedIndexPath.Count;
+
+                // Retrace output
+                int xdir = _graph.GridX(retracedIndexPath[size - 1]) - _graph.GridX(retracedIndexPath[size - 2]);
+                int ydir = _graph.GridY(retracedIndexPath[size - 1]) - _graph.GridY(retracedIndexPath[size - 2]);
+
+                // Moving horizontal
+                if (xdir != 0)
+                {
+                    if (_debug)
+                        Console.Out.WriteLine($"Moving horizontal ({xdir},{ydir})");
+
+                    if (xdir == -1 && (cellmap[_graph.GridX(retracedIndexPath[size - 1]) - 1, _graph.GridY(retracedIndexPath[size - 1]) - 1] ^
+                        cellmap[_graph.GridX(retracedIndexPath[size - 1]) - 1, _graph.GridY(retracedIndexPath[size - 1])]))
+                    {
+                        // Moving left
+                        if (_debug)
+                            Console.Out.WriteLine("Move left");
+
+                        retracedIndexPath.Add(_graph.GridIndex(_graph.GridX(retracedIndexPath[size - 1]) - 1,
+                            _graph.GridY(retracedIndexPath[size - 1])));
+                    }
+                    else if (xdir == 1 && (cellmap[_graph.GridX(retracedIndexPath[size - 1]), _graph.GridY(retracedIndexPath[size - 1]) - 1] ^
+                        cellmap[_graph.GridX(retracedIndexPath[size - 1]), _graph.GridY(retracedIndexPath[size - 1])]))
+                    {
+                        // Moving right
+                        if (_debug)
+                            Console.Out.WriteLine("Move right");
+
+                        retracedIndexPath.Add(_graph.GridIndex(_graph.GridX(retracedIndexPath[size - 1]) + 1,
+                            _graph.GridY(retracedIndexPath[size - 1])));
+                    }
+                    else
+                    {
+                        if (_debug)
+                            Console.Out.WriteLine("Moving down or up");
+
+                        // Move down
+                        if (cellmap[_graph.GridX(retracedIndexPath[size - 1]) - 1, _graph.GridY(retracedIndexPath[size - 1])] ^
+                            cellmap[_graph.GridX(retracedIndexPath[size - 1]), _graph.GridY(retracedIndexPath[size - 1])])
+                        {
+                            if (_debug)
+                                Console.Out.WriteLine("Moving down");
+
+                            retracedIndexPath.Add(_graph.GridIndex(_graph.GridX(retracedIndexPath[size - 1]),
+                                _graph.GridY(retracedIndexPath[size - 1]) + 1));
+                        }
+
+                        // Move up
+                        if (cellmap[_graph.GridX(retracedIndexPath[size - 1]) - 1, _graph.GridY(retracedIndexPath[size - 1]) - 1] ^
+                            cellmap[_graph.GridX(retracedIndexPath[size - 1]), _graph.GridY(retracedIndexPath[size - 1]) - 1])
+                        {
+                            if (_debug)
+                                Console.Out.WriteLine("Moving up");
+
+                            retracedIndexPath.Add(_graph.GridIndex(_graph.GridX(retracedIndexPath[size - 1]),
+                                _graph.GridY(retracedIndexPath[size - 1]) - 1));
+                        }
+                    }
+                }
+
+                // Moving vertical
+                if (ydir != 0)
+                {
+                    if (_debug)
+                        Console.Out.WriteLine($"Moving vertical ({xdir},{ydir})");
+
+                    if (
+                        ydir == 1 && (
+                        cellmap[
+                            _graph.GridX(retracedIndexPath[size - 1]) - 1,
+                            _graph.GridY(retracedIndexPath[size - 1])] ^
+                        cellmap[
+                            _graph.GridX(retracedIndexPath[size - 1]),
+                            _graph.GridY(retracedIndexPath[size - 1])]))
+                    {
+                        if (_debug)
+                            Console.Out.WriteLine("Moving down");
+
+                        retracedIndexPath.Add(_graph.GridIndex(_graph.GridX(retracedIndexPath[size - 1]),
+                            _graph.GridY(retracedIndexPath[size - 1]) + 1));
+                    }
+                    else if (ydir == -1 && cellmap[
+                          _graph.GridX(retracedIndexPath[size - 1]) - 1,
+                          _graph.GridY(retracedIndexPath[size - 1]) - 1] ^
+                      cellmap[
+                          _graph.GridX(retracedIndexPath[size - 1]),
+                          _graph.GridY(retracedIndexPath[size - 1]) - 1])
+                    {
+                        if (_debug)
+                            Console.Out.WriteLine("Moving up");
+
+                        retracedIndexPath.Add(_graph.GridIndex(_graph.GridX(retracedIndexPath[size - 1]),
+                            _graph.GridY(retracedIndexPath[size - 1]) - 1));
+                    }
+                    else
+                    {
+                        if (_debug)
+                            Console.Out.WriteLine("Moving left or right");
+
+                        // Move left
+                        if (cellmap[_graph.GridX(retracedIndexPath[size - 1]) - 1, _graph.GridY(retracedIndexPath[size - 1]) - 1] ^
+                            cellmap[_graph.GridX(retracedIndexPath[size - 1]) - 1, _graph.GridY(retracedIndexPath[size - 1])])
+                        {
+                            if (_debug)
+                                Console.Out.WriteLine("Moving left");
+
+                            retracedIndexPath.Add(_graph.GridIndex(_graph.GridX(retracedIndexPath[size - 1]) - 1,
+                                _graph.GridY(retracedIndexPath[size - 1])));
+                        }
+
+                        // Move right
+                        if (cellmap[_graph.GridX(retracedIndexPath[size - 1]), _graph.GridY(retracedIndexPath[size - 1]) - 1] ^
+                            cellmap[_graph.GridX(retracedIndexPath[size - 1]), _graph.GridY(retracedIndexPath[size - 1])])
+                        {
+                            if (_debug)
+                                Console.Out.WriteLine("Moving right");
+
+                            retracedIndexPath.Add(_graph.GridIndex(_graph.GridX(retracedIndexPath[size - 1]) + 1,
+                                _graph.GridY(retracedIndexPath[size - 1])));
+                        }
+                    }
+                }
+            }
+            retracedIndexPath.RemoveAt(retracedIndexPath.Count - 1);
+
+            return retracedIndexPath;
+        }
+
+        public List<int> SegmentCutout(List<int> indexPath)
+        {
+            // Build vertexpath
+            List<Vertex> vertexPath = BuildVertexPath(indexPath);
+            List<int> resultPath = new List<int>();
+            resultPath.AddRange(indexPath);
+
+            GridGraph gg = (_graph as GridGraph);
+
+            List<int> pointsOfInterests = new List<int>();
+            // Remove reused edges
+            for (int i = 1; i < indexPath.Count; i++)
+            {
+                for (int n = i + 1; n < indexPath.Count; n++)
+                {
+                    if ((indexPath[i] == indexPath[n] && indexPath[i - 1] == indexPath[n - 1]) ||
+                        (indexPath[i - 1] == indexPath[n] && indexPath[i] == indexPath[n - 1]))
+                    {
+                        pointsOfInterests.Add(indexPath[i]);
+                        pointsOfInterests.Add(indexPath[i - 1]);
+                    }
+                }
+            }
+
+            // Remove reused vertices
+            // Detect reuse of vertices
+            var duplicates = indexPath.GroupBy(i => i)
+                .Where(g => g.Count() > 1)
+                .Select(g => g.Key).ToList();
+            foreach (int v in duplicates)
+            {
+                if (v != indexPath.Last())
+                {
+                    pointsOfInterests.Add(v);
+                }
+            }
+
+            // DrawPointsOfInterest
+            pointsOfInterests = pointsOfInterests.Distinct().ToList();
+            foreach (int i in pointsOfInterests)
+            {
+                Ellipse ellipse = DrawCircle(_graph.V[i], 5, 2, Brushes.Green);
+                DebugCanvas.Children.Add(ellipse);
+            }
+
+            // Find neighbor points of interest
+            List<PartialProblem> partialProblems = new List<PartialProblem>();
+            while (pointsOfInterests.Any())
+            {
+                PartialProblem pp = new PartialProblem(_graph);
+                partialProblems.Add(pp);
+
+                int point = pointsOfInterests.First();
+                pp.addVertex(point);
+                pointsOfInterests.Remove(point);
+
+                bool anyInside = true;
+                while (anyInside)
+                {
+                    anyInside = false;
+                    foreach (int n in pointsOfInterests)
+                    {
+                        Vertex vf = _graph.V[n];
+                        if (pp.isInside(vf))
+                        {
+                            pp.addVertex(n);
+
+                            anyInside = true;
+                        }
+                    }
+
+                    pointsOfInterests = pointsOfInterests.Except(pp.vertices).ToList();
+                }
+            }
+
+            for (int n = 0; n < partialProblems.Count; n++)
+            {
+                
+                //if (n != 1)
+                //    continue;
+
+               PartialProblem partialProblem = partialProblems[n];
+                DrawBox(partialProblem.lbox, partialProblem.rbox, partialProblem.tbox, partialProblem.bbox, Brushes.Green);
+                Path path = partialProblem.getPath(_path);
+                Draw(DebugCanvas, path, Brushes.Red);
+
+                foreach (int i in partialProblem.vertices)
+                {
+                    DebugCanvas.Children.Add(DrawCircle(_graph.V[i], 5, 2, Brushes.Green));
+                }
+                Graph partialGraph = partialProblem.partialGraph();
+
+                //Draw(DebugCanvas, partialProblem.partialGraph(_graph), Brushes.Yellow);
+
+                // Find in and out on indexpath
+                int index = 0;
+                int start = -1;
+                int startIndex = -1;
+                int endIndex = -1;
+                int end = -1;
+                while (!partialProblem.isInside(_graph.V[resultPath[index]]) || GraphFunctions.Distance(_graph.V[resultPath[index]], path.V[0]) > 0.8)
+                {
+                    index++;
+                }
+                start = resultPath[index];
+                startIndex = index;
+
+                while ((partialProblem.isInside(_graph.V[resultPath[index]]) || resultPath.GetRange(startIndex, index - startIndex).Intersect(partialProblem.vertices).Count() !=
+                partialProblem.vertices.Count))
+                {
+                 //float dist = GraphFunctions.Distance(_graph.V[resultPath[index]], path.V[path.Size - 1]);
+                    //Console.Out.WriteLine(dist);
+
+                    index++;
+                }
+
+                endIndex = index - 1;
+                end = resultPath[index - 1];
+                
+
+                DetectCanvas.Children.Add(DrawCircle(_graph.V[start], 5, 4, Brushes.Green));
+                DetectCanvas.Children.Add(DrawCircle(_graph.V[end], 5, 4, Brushes.Red));
+
+                continue;
+
+                possiblePaths = partialProblem.getPossiblePaths(start, end);
+
+                FrechetDistance frechetDistance = new FrechetDistance(partialGraph, path);
+                List<List<int>> feasiblePaths = new List<List<int>>();
+
+                float minValue = 0;
+                float maxValue = 1;
+                float epsilon = 1;
+
+                
+
+                // Determine max and minvalue
+                while (!feasiblePaths.Any())
+                {
+                    Console.WriteLine($"{epsilon} - {possiblePaths.Count}");
+                    feasiblePaths.Clear();
+
+                    // Preprocess for all
+                    frechetDistance.Preprocessing(epsilon);
+
+                    for (int i = 0; i < possiblePaths.Count; i++)
+                    {
+                        if (i % 100000 == 0)
+                            Console.WriteLine($"{i}/{possiblePaths.Count}");
+
+                        if (frechetDistance.FeasiblePath(possiblePaths[i]))
+                        {
+                            feasiblePaths.Add(possiblePaths[i]);
+                        }
+                    }
+
+                    Console.Out.WriteLine($"{possiblePaths.Count} : {feasiblePaths.Count}");
+
+                    if (feasiblePaths.Any())
+                    {
+                        possiblePaths.Clear();
+                        possiblePaths.AddRange(feasiblePaths);
+                    }
+                    else
+                    {
+                        minValue = maxValue;
+                        maxValue *= 2;
+                        epsilon = maxValue;
+                        Console.WriteLine();
+                    }
+                }
+
+                // Find epsilon between min and max
+                while (maxValue - minValue > TOLERANCE)
+                {
+                    epsilon = (minValue + maxValue)/2;
+
+                    feasiblePaths.Clear();
+
+                    // Preprocess for all
+                    frechetDistance.Preprocessing(epsilon);
+
+                    for (int i = 0; i < possiblePaths.Count; i++)
+                    {
+                        if (i % 100000 == 0)
+                            Console.WriteLine($"{i}/{possiblePaths.Count}");
+
+                        if (frechetDistance.FeasiblePath(possiblePaths[i]))
+                        {
+                            feasiblePaths.Add(possiblePaths[i]);
+                        }
+                    }
+
+                    Console.WriteLine($"{epsilon} - {possiblePaths.Count}");
+
+                    if (feasiblePaths.Any())
+                    {
+                        maxValue = epsilon;
+                        possiblePaths.Clear();
+                        possiblePaths.AddRange(feasiblePaths);
+                    }
+                    else
+                    {
+                        minValue = epsilon;
+                    }
+                }
+
+
+                // Edit graph
+                frechetDistance.Preprocessing(maxValue);
+                resultPath.RemoveRange(startIndex, (endIndex - startIndex) + 1);
+                resultPath.InsertRange(startIndex, possiblePaths.First());
+
+                for (int p = 0; p < Math.Min(5, possiblePaths.Count); p++)
+                {
+                    List<FreeSpaceStrip> freeSpaceStrips = frechetDistance.GenerateFreeSpaceStrips(possiblePaths[p], 80);
+                    FreeSpaceDiagram freeSpaceDiagram = new FreeSpaceDiagram();
+                    for (int s = 0; s < freeSpaceStrips.Count; s++)
+                        {
+                            freeSpaceDiagram.freeSpaceStack.Children.Insert(0, freeSpaceStrips[s]);
+                        }
+                    freeSpaceDiagram.Show();
+                    freeSpaceDiagram.WindowState = WindowState.Maximized;
+                }
+                
+                
+            }
+
+           return resultPath;
+        }
+
+        public Graph CreateGraphFromEdges(Graph graph, List<int> vertices)
+        {
+            Graph vertexGraph = new Graph(graph.Size);
+            vertexGraph.V = graph.V;
+
+            for (int i = 1; i < vertices.Count; i++)
+            {
+                vertexGraph.E[vertices[i-1]].Add(vertices[i]);
+            }
+
+            return vertexGraph;
+        }
+
+        public void DrawBox(float lbox, float rbox, float tbox, float bbox, Brush brush)
+        {
+            Line tline = DrawLine(new Vertex(lbox, tbox), new Vertex(rbox, tbox), brush);
+            Line bline = DrawLine(new Vertex(lbox, bbox), new Vertex(rbox, bbox), brush);
+            Line lline = DrawLine(new Vertex(lbox, tbox), new Vertex(lbox, bbox), brush);
+            Line rline = DrawLine(new Vertex(rbox, tbox), new Vertex(rbox, bbox), brush);
+
+            DetectCanvas.Children.Add(tline);
+            DetectCanvas.Children.Add(bline);
+            DetectCanvas.Children.Add(lline);
+            DetectCanvas.Children.Add(rline);
+        }
+
+        public bool DetectReuse(List<int> indexPath)
+        {
+            // Reset counts
+            reusedEdges = 0;
+            reusedVertices = 0;
+            intersections = 0;
+
+            List<Vertex> vertexPath = BuildVertexPath(indexPath);
+
+            // Detect edge reuse
+            for (int i = 1; i < indexPath.Count; i++)
+            {
+                for (int n = i + 1; n < indexPath.Count; n++)
+                {
+                    if ((indexPath[i] == indexPath[n] && indexPath[i - 1] == indexPath[n - 1]) ||
+                        (indexPath[i - 1] == indexPath[n] && indexPath[i] == indexPath[n - 1]))
+                    {
+
+                        reusedEdges++;
+
+                        int v1 = indexPath[i - 1];
+                        int v2 = indexPath[i];
+
+                        Line line = DrawLine(_graph.V[v1], _graph.V[v2], Brushes.Red);
+                        DetectCanvas.Children.Add(line);
+                    }
+                }
+            }
+
+            // Build cell map
+            bool[,] cellmap = new bool[_graph.GridSize(), _graph.GridSize()];
+            for (int x = 0; x < _graph.GridSize(); x++)
+            {
+                for (int y = 0; y < _graph.GridSize(); y++)
+                {
+                    if (IsPointInPolygon(new Vertex(x + 0.5f, y + 0.5f), vertexPath))
+                        cellmap[x, y] = true;
+                }
+            }
+
+            // Detect reuse of vertices
+            var duplicates = indexPath.GroupBy(i => i)
+                .Where(g => g.Count() > 1)
+                .Select(g => g.Key).ToList();
+            foreach (int v in duplicates)
+            {
+                int vi1 = _graph.GridIndex(_graph.GridX(v) - 1, _graph.GridY(v) - 1);
+                int vi2 = _graph.GridIndex(_graph.GridX(v), _graph.GridY(v) - 1);
+                int vi3 = _graph.GridIndex(_graph.GridX(v) - 1, _graph.GridY(v));
+                int vi4 = _graph.GridIndex(_graph.GridX(v), _graph.GridY(v));
+
+                Vertex v1 = _graph.V[vi1] + new Vertex(0.5f, 0.5f);
+                Vertex v2 = _graph.V[vi2] + new Vertex(0.5f, 0.5f);
+                Vertex v3 = _graph.V[vi3] + new Vertex(0.5f, 0.5f);
+                Vertex v4 = _graph.V[vi4] + new Vertex(0.5f, 0.5f);
+
+                if (v != indexPath.Last())
+                {
+                    reusedVertices++;
+                    DetectCanvas.Children.Add(DrawCircle(_graph.V[v], 0.3f * scale, 2, Brushes.Red));
+                }
+
+                if (indexPath.IndexOf(v) - 1 <= 0 || indexPath.IndexOf(v) + 1 >= indexPath.Count)
+                    continue;
+
+                int vp = indexPath[indexPath.IndexOf(v) - 1];
+                int vn = indexPath[indexPath.IndexOf(v) + 1];
+
+                int vgrid1 = _graph.GridIndex(_graph.GridX(v), _graph.GridY(v) - 1);
+                int vgrid2 = _graph.GridIndex(_graph.GridX(v) + 1, _graph.GridY(v));
+                int vgrid3 = _graph.GridIndex(_graph.GridX(v), _graph.GridY(v) + 1);
+                int vgrid4 = _graph.GridIndex(_graph.GridX(v) - 1, _graph.GridY(v));
+
+                Vertex vg1 = null, vg2 = null;
+                Vertex vr1 = null, vr2 = null;
+
+                if ((cellmap[(int)Math.Floor(v1.X), (int)Math.Floor(v1.Y)] == false
+                    &&
+                    cellmap[(int)Math.Floor(v4.X), (int)Math.Floor(v4.Y)] == false
+                &&
+                    cellmap[(int)Math.Floor(v2.X), (int)Math.Floor(v2.Y)] == true
+                    &&
+                    cellmap[(int)Math.Floor(v3.X), (int)Math.Floor(v3.Y)] == true) || (cellmap[(int)Math.Floor(v1.X), (int)Math.Floor(v1.Y)] == true
+                    &&
+                    cellmap[(int)Math.Floor(v4.X), (int)Math.Floor(v4.Y)] == true
+                    &&
+                    cellmap[(int)Math.Floor(v2.X), (int)Math.Floor(v2.Y)] == false
+                    &&
+                    cellmap[(int)Math.Floor(v3.X), (int)Math.Floor(v3.Y)] == false))
+                {
+
+                    if (vp == vgrid1 && vn == vgrid3 || vp == vgrid3 && vn == vgrid1 || vp == vgrid4 && vn == vgrid2 ||
+vp == vgrid2 && vn == vgrid4)
+                    {
+
+                        Line line = DrawLine(_graph.V[v] - new Vertex(0.5f, 0.5f), _graph.V[v] + new Vertex(0.5f, 0.5f), Brushes.Red);
+                        Line line2 = DrawLine(_graph.V[v] + new Vertex(-0.5f, 0.5f), _graph.V[v] + new Vertex(0.5f, -0.5f), Brushes.Red);
+                        DetectCanvas.Children.Add(line);
+                        DetectCanvas.Children.Add(line2);
+
+                        //DetectCanvas.Children.Add(DrawCircle(_graph.V[v], 12.0f, 5, Brushes.Red));
+                        intersections++;
+                    }
+                }
+            }
+
+            if (reusedVertices + reusedEdges + intersections > 0)
+                return true;
+
+            return false;
+        }
+
+        public int SurroundingCount(Vertex c, List<Vertex> vertexPath)
+        {
+
+            // Get number of surounding cells inside
+            int count = 0;
+            count = IsPointInPolygon(new Vertex(c.X - 0.5f, c.Y - 0.5f), vertexPath) ? count + 1 : count;
+            count = IsPointInPolygon(new Vertex(c.X, c.Y - 0.5f), vertexPath) ? count + 1 : count;
+            count = IsPointInPolygon(new Vertex(c.X + 0.5f, c.Y - 0.5f), vertexPath) ? count + 1 : count;
+            count = IsPointInPolygon(new Vertex(c.X - 0.5f, c.Y), vertexPath) ? count + 1 : count;
+            count = IsPointInPolygon(new Vertex(c.X + 0.5f, c.Y), vertexPath) ? count + 1 : count;
+            count = IsPointInPolygon(new Vertex(c.X - 0.5f, c.Y + 0.5f), vertexPath) ? count + 1 : count;
+            count = IsPointInPolygon(new Vertex(c.X, c.Y + 0.5f), vertexPath) ? count + 1 : count;
+            count = IsPointInPolygon(new Vertex(c.X - 0.5f, c.Y + 0.5f), vertexPath) ? count + 1 : count;
+            return count;
+        }
+
+        public bool IsPointInPolygon(Vertex point, List<Vertex> polygon)
+        {
+            int polygonLength = polygon.Count, i = 0;
+            bool inside = false;
+            // x, y for tested point.
+            float pointX = point.X, pointY = point.Y;
+            // start / end point for the current polygon segment.
+            float startX, startY, endX, endY;
+            Vertex endPoint = polygon[polygonLength - 1];
+            endX = endPoint.X;
+            endY = endPoint.Y;
+            while (i < polygonLength)
+            {
+                startX = endX; startY = endY;
+                endPoint = polygon[i++];
+                endX = endPoint.X; endY = endPoint.Y;
+                //
+                inside ^= (endY > pointY ^ startY > pointY) /* ? pointY inside [startY;endY] segment ? */
+                          && /* if so, test if it is under the segment */
+                          ((pointX - endX) < (pointY - endY) * (startX - endX) / (startY - endY));
+            }
+            return inside;
         }
 
         public List<Line> resultPath = new List<Line>();
@@ -915,16 +1035,33 @@ namespace Matching_Planar_Maps
         {
             if (lineanimater != null)
             {
-                RenderCanvas.Children.Remove(lineanimater);
+                DetectCanvas.Children.Remove(lineanimater);
             }
 
-            if (path != null && path.Count > 0)
+            if (indexPath != null && indexPath.Count > 0)
             {
-                currentindex = (currentindex + 1) % (path.Count - 1);
-                int nextindex = (currentindex + 1) % (path.Count - 1);
-                lineanimater = DrawLine(_graph.V[path[currentindex]], _graph.V[path[nextindex]],
-                    Brushes.Green);
-                RenderCanvas.Children.Add(lineanimater);
+                currentindex = (currentindex + 1) % (indexPath.Count - 1);
+                int nextindex = (currentindex + 1) % (indexPath.Count - 1);
+                lineanimater = DrawLine(_graph.V[indexPath[currentindex]], _graph.V[indexPath[nextindex]],
+                    Brushes.Red);
+                DetectCanvas.Children.Add(lineanimater);
+            }
+        }
+
+        private void possiblePathTimer_Tick(object sender, EventArgs e)
+        {
+            if (!possiblePaths.Any())
+                return;
+
+            OutputCanvas.Children.Clear();
+            currentindex = (currentindex + 1) % (possiblePaths.Count - 1);
+            OutputCanvas.Children.Clear();
+
+            List<int> indexPath = possiblePaths[currentindex];
+            for (int i = 1; i < indexPath.Count; i++)
+            {
+                Line line = DrawLine(_graph.V[indexPath[i - 1]], _graph.V[indexPath[i]], Brushes.Blue);
+                OutputCanvas.Children.Add(line);
             }
         }
 
@@ -968,7 +1105,7 @@ namespace Matching_Planar_Maps
                 */
             }
 
-            DrawResult(_result);
+            //DrawResult(_result);
 
 
         }
@@ -1035,177 +1172,57 @@ namespace Matching_Planar_Maps
             return ellipse;
         }
 
-        public void GenerateFreeSpaceStrips()
+        public Polygon DrawCell(Vertex v, Brush brush)
         {
-            // Generate free space strips
-            _freeSpaceStrips = new List<FreeSpaceStrip>[_graph.Size];
-            freeSpaceStack.Children.Clear();
+            Vertex v1 = new Vertex((float)Math.Floor(v.X), (float)Math.Floor(v.Y));
+            Vertex v2 = v1 + new Vertex(1, 0);
+            Vertex v3 = v1 + new Vertex(1, 1);
+            Vertex v4 = v1 + new Vertex(0, 1);
 
-            for (int i = 0; i < _graph.Size; i++)
+            List<Vertex> vertices = new List<Vertex>();
+            vertices.Add(v1);
+            vertices.Add(v2);
+            vertices.Add(v3);
+            vertices.Add(v4);
+
+            Polygon polygon = DrawPolygon(vertices, brush);
+            polygon.Opacity = 0.35;
+            return polygon;
+        }
+
+        public Polygon DrawPolygon(List<Vertex> vertices, Brush brush)
+        {
+            Polygon polygon = new Polygon();
+            foreach (Vertex vertex in vertices)
             {
-                _freeSpaceStrips[i] = new List<FreeSpaceStrip>(_graph.Size * 4);
+                polygon.Points.Add(new Point(vertex.X, vertex.Y));
+            }
+            polygon.Fill = brush;
+            polygon.LayoutTransform = new ScaleTransform(scale, scale, 0, 0);
+            return polygon;
+        }
 
-                // For every outgoing edge
-                for (int j = 0; j < _graph.E[i].Count; j++)
-                {
-                    FreeSpaceStrip freeSpaceStrip = new FreeSpaceStrip(i, _graph.E[i][j], _size);
-                    freeSpaceStrip.MouseEnter += freespacestrip_MouseEnter;
-                    freeSpaceStrip.MouseLeftButtonDown += freespacestrip_Click;
-
-                    if (FD[i].Count > 0 || FD[_graph.E[i][j]].Count > 0)
-                    {
-                        foreach (Interval interval in FD[i])
-                        {
-                            if (!float.IsNaN(interval.LeftPointers[j]) ||
-                                !float.IsNaN(interval.RightPointers[j]))
-                            {
-                                freeSpaceStrip.wbmp = BitmapFactory.New(_size * (_path.Size - 1), _size);
-                                freeSpaceStrip.wbmp.Clear(Colors.Gray);
-                                freeSpaceStrip.imgControl.Source = freeSpaceStrip.wbmp;
-                                freeSpaceStack.Children.Insert(0, freeSpaceStrip);
-                                freeSpaceStrip.active = true;
-                                break;
-                            }
-                        }
-                    }
-
-                    _freeSpaceStrips[i].Add(freeSpaceStrip);
-                }
+        public void DrawResult(Canvas canvas, List<int> indexPath, Brush brush)
+        {
+            for (int i = 1; i < indexPath.Count; i++)
+            {
+                Line line = DrawLine(_graph.V[indexPath[i - 1]], _graph.V[indexPath[i]], brush);
+                canvas.Children.Add(line);
             }
         }
 
-        public void DrawFreeSpaceDiagram(FreeSpaceStrip freeSpaceStrip)
+        public void DrawResult(List<int> indexPath, Brush brush)
         {
-            int i = freeSpaceStrip.I;
-            int j = _graph.E[i].IndexOf(freeSpaceStrip.J);
+            OutputCanvas.Children.Clear();
+            RenderCanvas.Children.Clear();
 
-            freeSpaceStrip.Canvas.Width = _size * _path.Size;
-            // For every edge in path
-            for (int n = 0; n < _path.Size - 1; n++)
+            for (int i = 1; i < indexPath.Count; i++)
             {
-                if (_path.E[n].Count <= 0)
-                    continue;
-
-                for (int s = 0; s < steps; s++)
-                {
-                    float loc = ((1f / steps) * s);
-                    Vertex c = _path.V[n] + (_path.V[_path.E[n][0]] - _path.V[n]) * loc;
-
-                    Interval interval = GraphFunctions.CalculateInterval(_graph.V[i], _graph.V[_graph.E[i][j]], c, epsilon);
-                    if (!interval.Empty())
-                    {
-                        int X1 = Convert.ToInt32((loc + n) * _size);
-                        int Y1 = Convert.ToInt32(Inv(interval.Start * _size));
-                        int X2 = Convert.ToInt32((loc + n) * _size);
-                        int Y2 = Convert.ToInt32(Inv(interval.End * _size));
-
-                        freeSpaceStrip.wbmp.DrawLine(X1, Y1, X2, Y2, Colors.White);
-                        //Line line = new Line()
-                        //{
-                        //    X1 = (loc + n) * _size,
-                        //    Y1 = interval.Start * _size,
-                        //    X2 = (loc + n) * _size,
-                        //    Y2 = interval.End * _size,
-                        //    Stroke = Brushes.White,
-                        //    StrokeThickness = 4
-                        //};
-                        //freeSpaceStrip.Canvas.Children.Add(line);
-                    }
-                }
-            }
-        }
-
-        public void DrawIntervals(FreeSpaceStrip freeSpaceStrip)
-        {
-            int i = freeSpaceStrip.I;
-            int j = _graph.E[i].IndexOf(freeSpaceStrip.J);
-
-            // FD intervals
-            foreach (Interval interval in FD[i])
-            {
-                int X1 = Convert.ToInt32(interval.Start * _size);
-                int Y1 = Convert.ToInt32(_size);
-                int X2 = Convert.ToInt32(interval.End * _size);
-                int Y2 = Convert.ToInt32(_size);
-                freeSpaceStrip.wbmp.DrawLine(X1, Y1, X2, Y2, Colors.Blue);
-            }
-
-            foreach (Interval interval in FD[_graph.E[i][j]])
-            {
-                if (!interval.Empty())
-                {
-                    int X1 = Convert.ToInt32(interval.Start * _size);
-                    int Y1 = Convert.ToInt32(0);
-                    int X2 = Convert.ToInt32(interval.End * _size);
-                    int Y2 = Convert.ToInt32(0);
-                    freeSpaceStrip.wbmp.DrawLine(X1, Y1, X2, Y2, Colors.Blue);
-                }
-            }
-
-            // L intervals
-            for (int p = 0; p < _path.Size; p++)
-            {
-                Interval interval = L[i, p][j];
-                if (!interval.Empty())
-                {
-                    int X1 = Convert.ToInt32(_size * p);
-                    int Y1 = Convert.ToInt32(Inv(interval.Start * _size));
-                    int X2 = Convert.ToInt32(_size * p);
-                    int Y2 = Convert.ToInt32(Inv(interval.End * _size));
-                    freeSpaceStrip.wbmp.DrawLine(X1, Y1, X2, Y2, Colors.Blue);
-                }
-            }
-        }
-
-        public void DrawLeftPointers(FreeSpaceStrip freeSpaceStrip)
-        {
-            int i = freeSpaceStrip.I;
-            int j = _graph.E[i].IndexOf(freeSpaceStrip.J);
-
-            // FD intervals
-            foreach (Interval interval in FD[i])
-            {
-                if (float.IsNaN(interval.LeftPointers[j]))
-                    continue;
-
-                int X1 = Convert.ToInt32(interval.Start * _size);
-                int Y1 = Convert.ToInt32(_size);
-                int X2 = Convert.ToInt32(interval.LeftPointers[j] * _size);
-                int Y2 = Convert.ToInt32(0);
-                freeSpaceStrip.wbmp.DrawLine(X1, Y1, X2, Y2, Colors.Green);
-            }
-        }
-
-        public void DrawRightPointers(FreeSpaceStrip freeSpaceStrip)
-        {
-            int i = freeSpaceStrip.I;
-            int j = _graph.E[i].IndexOf(freeSpaceStrip.J);
-
-            // FD intervals
-            foreach (Interval interval in FD[i])
-            {
-                if (float.IsNaN(interval.RightPointers[j]))
-                    continue;
-
-                int X1 = Convert.ToInt32(interval.Start * _size);
-                int Y1 = Convert.ToInt32(_size);
-                int X2 = Convert.ToInt32(interval.RightPointers[j] * _size);
-                int Y2 = Convert.ToInt32(0);
-                freeSpaceStrip.wbmp.DrawLine(X1, Y1, X2, Y2, Colors.Red);
-            }
-        }
-
-        public void DrawResult(Interval result)
-        {
-            while (result != null && result.PathPointer != null)
-            {
-                Line line = DrawLine(_graph.V[result.GraphIndex], _graph.V[result.PathPointer.GraphIndex], Brushes.Blue);
-                resultPath.Add(line);
+                Line line = DrawLine(_graph.V[indexPath[i - 1]], _graph.V[indexPath[i]], brush);
                 OutputCanvas.Children.Add(line);
-                result = result.PathPointer;
             }
 
-            Graph resultGraph = CreateResultGraph(_result);
+            List<Vertex> resultGraph = BuildVertexPath(indexPath);
             outputPolygon0 = new Polygon();
             outputPolygon1 = new Polygon();
             outputPolygon2 = new Polygon();
@@ -1215,7 +1232,7 @@ namespace Matching_Planar_Maps
             outputPolygon6 = new Polygon();
             outputPolygon7 = new Polygon();
             outputPolygon8 = new Polygon();
-            foreach (Vertex v in resultGraph.V)
+            foreach (Vertex v in resultGraph)
             {
                 outputPolygon0.Points.Add(new Point(v.X - 1, v.Y - 1));
                 outputPolygon1.Points.Add(new Point(v.X - 1, v.Y));
@@ -1260,11 +1277,10 @@ namespace Matching_Planar_Maps
 
         private void canvas_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
-            return;
 
             Point p = Mouse.GetPosition(GridCanvas);
 
-            Vertex v = new Vertex((float)p.X / 10, (float)p.Y / 10);
+            Vertex v = new Vertex((float)p.X / scale, (float)p.Y / scale);
 
             if (_path == null)
                 _path = new Path(0);
@@ -1272,11 +1288,25 @@ namespace Matching_Planar_Maps
             List<Vertex> V = _path.V.ToList();
             V.Add(v);
 
+
             _path = new Path(V.Count);
             _path.V = V.ToArray();
 
+            // Generate input polygon
+            inputPolygon = new Polygon();
+            foreach (Vertex vertex in _path.V)
+            {
+                inputPolygon.Points.Add(new Point(vertex.X, vertex.Y));
+            }
+
             InputCanvas.Children.Clear();
             Draw(InputCanvas, _path, Brushes.Black);
+
+            if (_path.Size > 1)
+            {
+
+                CalculateResult();
+            }
 
             //Calculation();
 
@@ -1292,8 +1322,65 @@ namespace Matching_Planar_Maps
             //ReDraw(true);
         }
 
+
+        private Ellipse circleSelector = null;
         private void canvas_MouseRightButtonDown(object sender, MouseButtonEventArgs e)
         {
+
+            /*
+
+            Point p = Mouse.GetPosition(DetectCanvas);
+            Vertex c = new Vertex((float)p.X / scale, (float)p.Y / scale);
+
+            if (circleSelector != null)
+            {
+                DetectCanvas.Children.Remove(circleSelector);
+            }
+
+            circleSelector = DrawCircle(c, epsilon * scale, 2, Brushes.Aquamarine);
+            DetectCanvas.Children.Add(circleSelector);
+
+            Vertex intersection1;
+            Vertex intersection2;
+
+            Graph graph = _resultGraph;
+
+            for (int v = 0; v < graph.Size; v++)
+            {
+                for (int i = 0; i < graph.E[v].Count; i++)
+                {
+                    Vertex v1 = graph.V[v];
+                    Vertex v2 = graph.V[graph.E[v][i]];
+
+                    int nrOfIntersections = GraphFunctions.LineCircleIntersections(c, epsilon, v1, v2, out intersection1, out intersection2);
+
+                    //if (nrOfIntersections == 0)
+                    //    DetectCanvas.Children.Remove(intersectionLine);
+
+                    if (nrOfIntersections == 2)
+                    {
+                        if (GraphFunctions.DistanceSquared(v1, c) < Math.Pow(epsilon, 2))
+                        {
+                            intersection2.X = v1.X;
+                            intersection2.Y = v1.Y;
+                        }
+
+                        if (GraphFunctions.DistanceSquared(v2, c) < Math.Pow(epsilon, 2))
+                        {
+                            intersection1.X = v2.X;
+                            intersection1.Y = v2.Y;
+                        }
+
+                        DetectCanvas.Children.Add(DrawLine(intersection1, intersection2, Brushes.Orange));
+                    }
+
+                    
+                    //DrawIntersectionLine(intersection1, intersection2, Brushes.Yellow)
+                }
+            }
+            */
+
+
             if (_path.V.Length > 0)
             {
                 List<Vertex> V = _path.V.ToList();
@@ -1301,7 +1388,17 @@ namespace Matching_Planar_Maps
                 _path = new Path(V.Count);
                 _path.V = V.ToArray();
 
-                //Calculation();
+                // Generate input polygon
+                inputPolygon = new Polygon();
+                foreach (Vertex vertex in _path.V)
+                {
+                    inputPolygon.Points.Add(new Point(vertex.X, vertex.Y));
+                }
+
+                InputCanvas.Children.Clear();
+                Draw(InputCanvas, _path, Brushes.Black);
+
+                CalculateResult();
             }
 
             //if (_result != null)
@@ -1315,8 +1412,8 @@ namespace Matching_Planar_Maps
 
             //ReDraw(true);
 
-            InputCanvas.Children.Clear();
-            Draw(InputCanvas, _path, Brushes.Black);
+            //InputCanvas.Children.Clear();
+            //Draw(InputCanvas, _path, Brushes.Black);
         }
 
         private Line _edge_highlighting = null;
@@ -1354,20 +1451,18 @@ namespace Matching_Planar_Maps
             //ReDraw(true);
         }
 
-        private void button_Click(object sender, RoutedEventArgs e)
+        private void calculate_Click(object sender, RoutedEventArgs e)
         {
             if (!initialized)
                 init();
 
-            //_graph = new GridGraph(30, 50, 10f);
+            if (_path == null)
+            {
+                MessageBox.Show("Geen input indexPath.");
+                return;
+            }
 
-            Draw(InputCanvas, _path, Brushes.Black);
-
-            Calculation();
-
-            ReDraw();
-
-            DetectSameEdges();
+            CalculateResult();
 
         }
         #endregion
@@ -1383,7 +1478,6 @@ namespace Matching_Planar_Maps
                 MessageBox.Show("Press calculate first");
                 return;
             }
-               
 
             if (pg4 == null)
             {
@@ -1391,8 +1485,8 @@ namespace Matching_Planar_Maps
                 return;
             }
 
-            // Check if path exists otherwise create
-            string path = String.Format("{0}/{1}/pos{2:D2}", outputfolder, currentFile, _current_position);
+            // Check if indexPath exists otherwise create
+            string path = String.Format("{0}/grid_{1}/{2}/pos{3:D2}", outputfolder, _graph.GridSize(), currentFile, _current_position);
             if (!Directory.Exists(path))
             {
                 System.IO.Directory.CreateDirectory(path);
@@ -1462,11 +1556,11 @@ namespace Matching_Planar_Maps
             outputRTB.Render(OutputCanvas);
             detectRTB.Render(DetectCanvas);
 
-            var gridCrop = new CroppedBitmap(gridRTB, new Int32Rect(0, 0, 500, 500));
-            var inputCrop = new CroppedBitmap(inputRTB, new Int32Rect(0, 0, 500, 500));
-            var outputPolygonCrop = new CroppedBitmap(outputPolygonRTB, new Int32Rect(0, 0, 500, 500));
-            var outputCrop = new CroppedBitmap(outputRTB, new Int32Rect(0, 0, 500, 500));
-            var detectCrop = new CroppedBitmap(detectRTB, new Int32Rect(0, 0, 500, 500));
+            var gridCrop = new CroppedBitmap(gridRTB, new Int32Rect(0, 0, Convert.ToInt32(_graph.GridSize() * scale), Convert.ToInt32(_graph.GridSize() * scale)));
+            var inputCrop = new CroppedBitmap(inputRTB, new Int32Rect(0, 0, Convert.ToInt32(_graph.GridSize() * scale), Convert.ToInt32(_graph.GridSize() * scale)));
+            var outputPolygonCrop = new CroppedBitmap(outputPolygonRTB, new Int32Rect(0, 0, Convert.ToInt32(_graph.GridSize() * scale), Convert.ToInt32(_graph.GridSize() * scale)));
+            var outputCrop = new CroppedBitmap(outputRTB, new Int32Rect(0, 0, Convert.ToInt32(_graph.GridSize() * scale), Convert.ToInt32(_graph.GridSize() * scale)));
+            var detectCrop = new CroppedBitmap(detectRTB, new Int32Rect(0, 0, Convert.ToInt32(_graph.GridSize() * scale), Convert.ToInt32(_graph.GridSize() * scale)));
 
             //Combine the images here
             var id1 = new ImageDrawing(gridCrop, new Rect(0, 0, gridCrop.Width, gridCrop.Height));
@@ -1491,50 +1585,55 @@ namespace Matching_Planar_Maps
             combinedImg.Render(dv);
 
             BitmapEncoder pngEncoder;
-            string path = String.Format("{0}/{1}/pos{2:D2}/", outputfolder, currentFile, _current_position);
+            string path = String.Format("{0}/grid_{1}/{2}/pos{3:D2}", outputfolder, _graph.GridSize(), currentFile, _current_position);
 
             pngEncoder = new PngBitmapEncoder();
             pngEncoder.Frames.Add(BitmapFrame.Create(inputCrop));
-            using (var fs = System.IO.File.OpenWrite(string.Format("{0}{1}-input.png", path, filename)))
+            using (var fs = System.IO.File.OpenWrite(string.Format("{0}/input.png", path)))
             {
                 pngEncoder.Save(fs);
             }
 
             pngEncoder = new PngBitmapEncoder();
             pngEncoder.Frames.Add(BitmapFrame.Create(outputPolygonCrop));
-            using (var fs = System.IO.File.OpenWrite(string.Format("{0}{1}-outputPolygon-{2}-{3}-{4}.png", path, filename, epsilon, reusedEdges, reusedVertices)))
+            using (var fs = System.IO.File.OpenWrite(string.Format("{0}/outputPolygon.png", path)))
             {
                 pngEncoder.Save(fs);
             }
 
             pngEncoder = new PngBitmapEncoder();
             pngEncoder.Frames.Add(BitmapFrame.Create(outputCrop));
-            using (var fs = System.IO.File.OpenWrite(string.Format("{0}{1}-output-{2}-{3}-{4}.png", path, filename, epsilon, reusedEdges, reusedVertices)))
+            using (var fs = System.IO.File.OpenWrite(string.Format("{0}/output.png", path)))
             {
                 pngEncoder.Save(fs);
             }
 
             pngEncoder = new PngBitmapEncoder();
             pngEncoder.Frames.Add(BitmapFrame.Create(detectCrop));
-            using (var fs = System.IO.File.OpenWrite(string.Format("{0}{1}-detect-{2}-{3}-{4}.png", path, filename, epsilon, reusedEdges, reusedVertices)))
+            using (var fs = System.IO.File.OpenWrite(string.Format("{0}/detect.png", path)))
             {
                 pngEncoder.Save(fs);
             }
-            SaveOutput(string.Format("{0}{1}-output-{2}.txt", path, filename, epsilon));
+            SaveOutput(string.Format("{0}/output.txt", path));
 
             double minimal = pg0.GetArea();
-             minimal = Math.Min(minimal, pg1.GetArea());
-             minimal = Math.Min(minimal, pg2.GetArea());
-             minimal = Math.Min(minimal, pg3.GetArea());
-             minimal = Math.Min(minimal, pg4.GetArea());
-             minimal = Math.Min(minimal, pg5.GetArea());
-             minimal = Math.Min(minimal, pg6.GetArea());
-             minimal = Math.Min(minimal, pg7.GetArea());
-             minimal = Math.Min(minimal, pg8.GetArea());
-            
+            minimal = Math.Min(minimal, pg1.GetArea());
+            minimal = Math.Min(minimal, pg2.GetArea());
+            minimal = Math.Min(minimal, pg3.GetArea());
+            minimal = Math.Min(minimal, pg4.GetArea());
+            minimal = Math.Min(minimal, pg5.GetArea());
+            minimal = Math.Min(minimal, pg6.GetArea());
+            minimal = Math.Min(minimal, pg7.GetArea());
+            minimal = Math.Min(minimal, pg8.GetArea());
+
+            // Store results to 
+            string resultString = String.Format("{0},{1},{2},{3},{4},{5}", filename, epsilon.ToString(CultureInfo.CreateSpecificCulture("en-US")), minimal.ToString(CultureInfo.CreateSpecificCulture("en-US")), reusedVertices,
+                reusedEdges, intersections);
+            File.WriteAllText(string.Format("{0}/result.csv", path), resultString);
+
             pngEncoder = new PngBitmapEncoder();
             pngEncoder.Frames.Add(BitmapFrame.Create(combinedImg));
-            using (var fs = System.IO.File.OpenWrite(string.Format("{0}{1}-full-{2}-{3}.png", path, filename, epsilon, minimal)))
+            using (var fs = System.IO.File.OpenWrite(string.Format("{0}/full.png", path)))
             {
                 pngEncoder.Save(fs);
             }
@@ -1554,12 +1653,12 @@ namespace Matching_Planar_Maps
 
             pngEncoder = new PngBitmapEncoder();
             pngEncoder.Frames.Add(BitmapFrame.Create(combinedImg));
-            using (var fs = System.IO.File.OpenWrite(string.Format("{0}{1}-result-{2}.png", path, filename, epsilon)))
+            using (var fs = System.IO.File.OpenWrite(string.Format("{0}/result.png", path)))
             {
                 pngEncoder.Save(fs);
             }
 
-            
+
         }
 
         private void Window_Loaded(object sender, RoutedEventArgs e)
@@ -1572,7 +1671,7 @@ namespace Matching_Planar_Maps
 
         private void MenuItemClear_Click(object sender, RoutedEventArgs e)
         {
-            _path = new Graph(0);
+            _path = new Path(0);
 
             _result = null;
 
@@ -1605,7 +1704,7 @@ namespace Matching_Planar_Maps
         }
 
         private void MenuItemSave_Click(object sender, RoutedEventArgs e)
-        {      
+        {
             StringBuilder stringBuilder = new StringBuilder();
             for (int i = 0; i < _path.V.Length; i++)
             {
@@ -1620,18 +1719,28 @@ namespace Matching_Planar_Maps
                 File.WriteAllText(saveFileDialog.FileName, stringBuilder.ToString());
         }
 
+        private void SaveResult(String filename)
+        {
+            StringBuilder stringBuilder = new StringBuilder();
+            if (_resultGraph != null)
+            {
+
+            }
+        }
+
         private void SaveOutput(String filename)
         {
-            // Convert path to string
             StringBuilder stringBuilder = new StringBuilder();
-            for (int i = 0; i < _path.V.Length; i++)
+            if (_resultGraph != null)
             {
-                stringBuilder.AppendLine(String.Format("{0} {1}",
-                    _path.V[i].X.ToString(CultureInfo.CreateSpecificCulture("en-US")),
-                    _path.V[i].Y.ToString(CultureInfo.CreateSpecificCulture("en-US"))));
+                for (int i = 0; i < _resultGraph.Size; i++)
+                {
+                    stringBuilder.AppendLine(String.Format("{0} {1}",
+                        _resultGraph.V[i].X.ToString(CultureInfo.CreateSpecificCulture("en-US")),
+                        _resultGraph.V[i].Y.ToString(CultureInfo.CreateSpecificCulture("en-US"))));
+                }
+                File.WriteAllText(filename, stringBuilder.ToString());
             }
-
-            File.WriteAllText(filename, stringBuilder.ToString());
         }
 
         private void MenuItemOpen_Click(object sender, RoutedEventArgs e)
@@ -1656,7 +1765,7 @@ namespace Matching_Planar_Maps
                 _deltaY = 0;
                 _current_position = 0;
                 lbl_curpos.Content = String.Format("current position: {0}", _current_position);
-                
+
 
                 _path = fileReader.ReadFile(openFileDialog.FileName);
 
@@ -1668,6 +1777,7 @@ namespace Matching_Planar_Maps
                 DetectCanvas.Children.Clear();
                 OutputPolygonCanvas.Children.Clear();
                 RenderCanvas.Children.Clear();
+                DebugCanvas.Children.Clear();
 
                 Normalize();
                 Center();
@@ -1681,7 +1791,7 @@ namespace Matching_Planar_Maps
 
                 Draw(InputCanvas, _path, Brushes.Black);
 
-               
+
                 //   Calculation();
 
                 // ReDraw();
@@ -1690,7 +1800,7 @@ namespace Matching_Planar_Maps
 
         private void Normalize()
         {
-            if (_path == null)
+            if (_path == null || _path.Size <= 0)
                 return;
 
             // Scale
@@ -1721,8 +1831,6 @@ namespace Matching_Planar_Maps
             }
 
             Center();
-
-
         }
 
         private void Center()
@@ -1760,18 +1868,99 @@ namespace Matching_Planar_Maps
                 GridCanvas.Children.Clear();
                 Draw(GridCanvas, _graph, Brushes.LightGray);
 
-                Calculation();
+                Calculation(_graph, _path);
 
                 ReDraw();
             }
         }
 
         private CombinedGeometry cg0, cg1, cg2, cg3, cg4, cg5, cg6, cg7, cg8;
+
+        private void Clear()
+        {
+            _result = null;
+            _path = null;
+            indexPath = null;
+            outputPolygon4 = null;
+            pg4 = null;
+
+            GridCanvas.Children.Clear();
+            InputCanvas.Children.Clear();
+            OutputCanvas.Children.Clear();
+            DetectCanvas.Children.Clear();
+            OutputPolygonCanvas.Children.Clear();
+            RenderCanvas.Children.Clear();
+
+            Draw(GridCanvas, _graph, Brushes.LightGray);
+        }
+
+        private void grid10_Click(object sender, RoutedEventArgs e)
+        {
+            size = 10;
+            _graph = new GridGraph(10, 1f);
+            scale = 500.0f / _graph.GridSize();
+            scale *= 1.5f;
+            Clear();
+        }
+
+        private void grid30_Click(object sender, RoutedEventArgs e)
+        {
+            size = 30;
+            _graph = new GridGraph(30, 1f);
+            scale = 500.0f / _graph.GridSize();
+            scale *= 1.5f;
+            Clear();
+        }
+
+        private void grid50_Click(object sender, RoutedEventArgs e)
+        {
+            size = 50;
+            _graph = new GridGraph(50, 1f);
+            scale = 500.0f / _graph.GridSize();
+            scale *= 1.5f;
+            Clear();
+        }
+
+        private void grid70_Click(object sender, RoutedEventArgs e)
+        {
+            size = 70;
+            _graph = new GridGraph(70, 1f);
+            scale = 500.0f / _graph.GridSize();
+            scale *= 1.5f;
+            Clear();
+        }
+
+        private void BtnFreespaceDiagram_Click(object sender, RoutedEventArgs e)
+        {
+            MapMatching mapMatching=new MapMatching();
+            _freeSpaceStrips = mapMatching.GenerateFreeSpaceStrips(_resultGraph, _path, _size, epsilon);
+            FreeSpaceDiagram freeSpaceDiagram = new FreeSpaceDiagram();
+            for (int i = 0; i < _resultGraph.Size; i++)
+            {
+                for (int s = 0; s < _freeSpaceStrips[i].Count; s++)
+                {
+                    freeSpaceDiagram.freeSpaceStack.Children.Insert(0, _freeSpaceStrips[i][s]);
+                }
+            }
+            freeSpaceDiagram.Show();
+
+        }
+
+        private void grid90_Click(object sender, RoutedEventArgs e)
+        {
+            size = 90;
+            _graph = new GridGraph(90, 1f);
+            scale = 500.0f / _graph.GridSize();
+            scale *= 1.5f;
+            Clear();
+        }
+
         private PathGeometry pg0, pg1, pg2, pg3, pg4, pg5, pg6, pg7, pg8;
         private void button1_Click(object sender, RoutedEventArgs e)
         {
             if (outputPolygon4 == null)
             {
+
                 MessageBox.Show("Please calculate first");
                 return;
             }
@@ -1812,10 +2001,6 @@ namespace Matching_Planar_Maps
             cg8.GeometryCombineMode = GeometryCombineMode.Xor;
             pg8 = cg8.GetFlattenedPathGeometry();
 
-
-
-
-
             System.Windows.Shapes.Path combinedPath = new System.Windows.Shapes.Path();
             combinedPath.Data = cg4;
             combinedPath.Fill = Brushes.Red;
@@ -1824,11 +2009,6 @@ namespace Matching_Planar_Maps
             Console.Out.WriteLine("Symmetric difference: {0}", pg4.GetArea());
             combinedPath.LayoutTransform = new ScaleTransform(scale, scale, 0, 0);
             RenderCanvas.Children.Add(combinedPath);
-        }
-
-        private void Button_Click_1(object sender, RoutedEventArgs e)
-        {
-
         }
 
         private int _current_position = 0;
@@ -1866,7 +2046,7 @@ namespace Matching_Planar_Maps
 
             // Reset output etc
             _result = null;
-            path = null;
+            indexPath = null;
             outputPolygon4 = null;
             pg4 = null;
 
@@ -1881,5 +2061,3 @@ namespace Matching_Planar_Maps
         }
     }
 }
-
-

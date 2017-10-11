@@ -60,5 +60,6 @@ namespace Matching_Planar_Maps
             Grid.SetRow(lbl2, 0);
             labelGrid.Children.Add(lbl2);
         }
+
     }
 }

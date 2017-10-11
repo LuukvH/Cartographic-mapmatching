@@ -35,7 +35,7 @@ namespace Matching_Planar_Maps
                     string[] coordinate = line.Split(' ');
                     if (coordinate.Length >= 2)
                     {
-                        vertices.Add(new Vertex(float.Parse(coordinate[0], CultureInfo.InvariantCulture.NumberFormat), float.Parse(coordinate[1], CultureInfo.InvariantCulture.NumberFormat)));
+                       vertices.Add(new Vertex(float.Parse(coordinate[0], CultureInfo.InvariantCulture.NumberFormat), float.Parse(coordinate[1], CultureInfo.InvariantCulture.NumberFormat)));
                     }
                 }
             }

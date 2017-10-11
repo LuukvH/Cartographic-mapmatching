@@ -22,8 +22,8 @@
 
         <Grid>
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="0.4*"></ColumnDefinition>
                 <ColumnDefinition Width="0.6*"></ColumnDefinition>
+                <ColumnDefinition Width="0.3*"></ColumnDefinition>
             </Grid.ColumnDefinitions>
             <Grid.RowDefinitions>
                 <RowDefinition Height="*"></RowDefinition>
@@ -31,22 +31,16 @@
             </Grid.RowDefinitions>
 
             <!--<Image x:Name="image" Grid.Column="0" Grid.Row="0" Width="440" Height="440" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="30,30" Source="sengal.png"/>-->
-            <Canvas x:Name="RenderCanvas" Grid.Column="0" Grid.Row="0" Background="transparent" MouseLeftButtonDown="canvas_MouseLeftButtonDown" MouseRightButtonDown="canvas_MouseRightButtonDown" />
-            <Canvas x:Name="GridCanvas" Grid.Column="0" Grid.Row="0" Background="transparent" MouseLeftButtonDown="canvas_MouseLeftButtonDown" MouseRightButtonDown="canvas_MouseRightButtonDown" />
-            <Canvas x:Name="InputCanvas" Grid.Column="0" Grid.Row="0" Background="transparent" MouseLeftButtonDown="canvas_MouseLeftButtonDown" MouseRightButtonDown="canvas_MouseRightButtonDown" />
-            <Canvas x:Name="OutputPolygonCanvas" Grid.Column="0" Grid.Row="0" Background="transparent" MouseLeftButtonDown="canvas_MouseLeftButtonDown" MouseRightButtonDown="canvas_MouseRightButtonDown" />
-            <Canvas x:Name="OutputCanvas" Grid.Column="0" Grid.Row="0" Background="transparent" MouseLeftButtonDown="canvas_MouseLeftButtonDown" MouseRightButtonDown="canvas_MouseRightButtonDown" />
+            
+            <Canvas x:Name="RenderCanvas" Grid.Column="0" Grid.Row="0" Background="transparent"  MouseRightButtonDown="canvas_MouseRightButtonDown" />
+            <Canvas x:Name="GridCanvas" Grid.Column="0" Grid.Row="0" Background="transparent"  MouseRightButtonDown="canvas_MouseRightButtonDown" />
+            <Canvas x:Name="InputCanvas" Grid.Column="0" Grid.Row="0" Background="transparent"  MouseRightButtonDown="canvas_MouseRightButtonDown" />
+            <Canvas x:Name="OutputPolygonCanvas" Grid.Column="0" Grid.Row="0" Background="transparent" MouseRightButtonDown="canvas_MouseRightButtonDown" />
+            <Canvas x:Name="OutputCanvas" Grid.Column="0" Grid.Row="0" Background="transparent"  MouseRightButtonDown="canvas_MouseRightButtonDown" />
             <Canvas x:Name="DetectCanvas" Grid.Column="0" Grid.Row="0" Background="transparent" MouseLeftButtonDown="canvas_MouseLeftButtonDown" MouseRightButtonDown="canvas_MouseRightButtonDown" />
-            <ScrollViewer Grid.Column="1" Grid.Row="0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto">
-                <StackPanel x:Name="freeSpaceStack"  Margin="0,50,0,0" >
-                    <StackPanel.Resources>
-                        <Style TargetType="{x:Type Canvas}">
-                            <Setter Property="Margin" Value="0,10,0,0"/>
-                        </Style>
-                    </StackPanel.Resources>
-                </StackPanel>
-            </ScrollViewer>
-            <Button x:Name="button" Content="Calculate" HorizontalAlignment="Left" Margin="10,20.8,0,0" Grid.Row="1" VerticalAlignment="Top" Width="75" Click="button_Click"/>
+            <Canvas x:Name="DebugCanvas" Grid.Column="0" Grid.Row="0" Background="transparent" />
+
+            <Button x:Name="button" Content="Calculate" HorizontalAlignment="Left" Margin="10,20.8,0,0" Grid.Row="1" VerticalAlignment="Top" Width="75" Click="calculate_Click"/>
             <Button x:Name="button1" Content="Sym diff" HorizontalAlignment="Left" Margin="90,20.4,0,0" Grid.Row="1" VerticalAlignment="Top" Width="75" Click="button1_Click"/>
             <Button x:Name="Result" Content="Result" HorizontalAlignment="Left" Margin="170,19.4,0,0" Grid.Row="1" VerticalAlignment="Top" Width="75" Click="Result_Click" Grid.ColumnSpan="2"/>
             <Label x:Name="lblEpsilon" Content="-" Grid.Column="1" HorizontalAlignment="Right" Margin="0,0,10.4,9.8" VerticalAlignment="Bottom" Grid.Row="1" RenderTransformOrigin="0.028,1.742"/>
@@ -55,7 +49,15 @@
             <StackPanel  Grid.Column="1">
                 <Button  Content="Next position" Height="24" VerticalAlignment="Top" Click="nextPosition_click" ></Button>
                 <Label x:Name="lbl_curpos"  Content="current position: 0"></Label>
+                <StackPanel Margin="0,10">
+                    <Button x:Name="grid10" Content="Grid 10" Click="grid10_Click"></Button>
+                    <Button x:Name="grid30" Content="Grid 30" Click="grid30_Click"></Button>
+                    <Button x:Name="grid50" Content="Grid 50" Click="grid50_Click"></Button>
+                    <Button x:Name="grid70" Content="Grid 70" Click="grid70_Click"></Button>
+                    <Button x:Name="grid90" Content="Grid 90" Click="grid90_Click"></Button>
+                </StackPanel>
             </StackPanel>
+            <Button x:Name="BtnFreespaceDiagram" Content="FreeSpaceDiagram" HorizontalAlignment="Left" Margin="261,19.4,0,0" Grid.Row="1" VerticalAlignment="Top" Width="114" Click="BtnFreespaceDiagram_Click" Grid.ColumnSpan="2"/>
 
         </Grid>
     </DockPanel>

@@ -83,9 +83,15 @@
       <SubType>Designer</SubType>
     </ApplicationDefinition>
     <Compile Include="Edge.cs" />
+    <Compile Include="FrechetDistannce.cs" />
+    <Compile Include="FreeSpaceDiagram.xaml.cs">
+      <DependentUpon>FreeSpaceDiagram.xaml</DependentUpon>
+    </Compile>
     <Compile Include="GridBuilderWindow.xaml.cs">
       <DependentUpon>GridBuilderWindow.xaml</DependentUpon>
     </Compile>
+    <Compile Include="MapMatching.cs" />
+    <Compile Include="PartialProblem.cs" />
     <Compile Include="TXTReader.cs" />
     <Compile Include="IPEReader.cs" />
     <Compile Include="FreeSpaceStrip.cs" />
@@ -96,6 +102,10 @@
     <Compile Include="Interval.cs" />
     <Compile Include="Range.cs" />
     <Compile Include="Vertex.cs" />
+    <Page Include="FreeSpaceDiagram.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
     <Page Include="GridBuilderWindow.xaml">
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>
@@ -165,15 +175,15 @@
     <None Include="App.config" />
   </ItemGroup>
   <ItemGroup>
-    <Resource Include="Samples\Poland.txt">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Resource>
+    <None Include="Samples\Poland.txt">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <WCFMetadata Include="Service References\" />
   </ItemGroup>
   <ItemGroup>
-    <Resource Include="Samples\Senegal.txt" />
+    <None Include="Samples\Senegal.txt" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <Import Project="..\packages\Esri.ArcGISRuntime.WPF.100.1.0\build\net452\Esri.ArcGISRuntime.WPF.targets" Condition="Exists('..\packages\Esri.ArcGISRuntime.WPF.100.1.0\build\net452\Esri.ArcGISRuntime.WPF.targets')" />
