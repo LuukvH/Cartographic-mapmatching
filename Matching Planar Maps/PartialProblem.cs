@@ -12,8 +12,8 @@ namespace Matching_Planar_Maps
     public class PartialProblem
     {
         public float lbox, rbox, tbox, bbox = 0;
-        private float spacing = 1.0f;
-        private float rspacing = 1.0f;
+        private float spacing = 2.0f;
+        private float rspacing = 2.0f;
         public List<int> vertices = new List<int>();
         public Graph PartialGraph = null;
         private Graph _graph;

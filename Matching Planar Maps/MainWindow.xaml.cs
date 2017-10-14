@@ -79,7 +79,7 @@ namespace Matching_Planar_Maps
             //dispatcherTimer.Start();
         }
 
-        private int size = 70;
+        private int size = 90;
         public void init()
         {
             //_graph = new GridGraph(8, 8, 80f);
@@ -106,53 +106,68 @@ namespace Matching_Planar_Maps
             Normalize();
             Center();
 
+            SetPosition(5);
+
             //CalculateResult();
         }
 
         public void CalculateResult()
         {
-            OutputCanvas.Children.Clear();
-
-            // Generate input polygon
-            inputPolygon = new Polygon();
-            foreach (Vertex v in _path.V)
+            for (int i = 13; i < 25; i++)
             {
-                inputPolygon.Points.Add(new Point(v.X, v.Y));
-            }
+                SetPosition(i);
 
-            List<int> result = Calculation(_graph, _path);
-            //epsilon = 0.66558f;
-            //epsilon = 0.707f;
-            //List<int> result = BuildIndexPath(MapMatching.Calculate(_graph, _path, epsilon, _allowSameEdge));
+                OutputCanvas.Children.Clear();
 
-            bool[,] mapMatchingCellmap = BuildCellMap(BuildVertexPath(result));
-            bool[,] cellmap = BuildCellMap(BuildVertexPath(result));
+                // Generate input polygon
+                inputPolygon = new Polygon();
+                foreach (Vertex v in _path.V)
+                {
+                    inputPolygon.Points.Add(new Point(v.X, v.Y));
+                }
 
-            /*
+                //MapMatching mapMatching = new MapMatching();
+                List<int> result = Calculation(_graph, _path);
+                //epsilon = 0.66558f;
+                //epsilon = 0.6773608f;
+                //List<int> result = BuildIndexPath(mapMatching.Calculate(_graph, _path, epsilon, _allowSameEdge));
+
+                bool[,] mapMatchingCellmap = BuildCellMap(BuildVertexPath(result));
+                bool[,] cellmap = BuildCellMap(BuildVertexPath(result));
+
+                /*
             while (DetectReuse(result))
             {
                 cellmap = PushAndPull(result);
                 result = RetraceCellMap(cellmap, result);
             }*/
 
-            //result = SegmentCutout(result);
+                //result = SegmentCutout(result);
 
 
-            DrawResult(result, Brushes.Blue);
+                DrawResult(result, Brushes.Blue);
 
-            //DetectCanvas.Children.Clear();
-            //DrawCellMap(mapMatchingCellmap, cellmap);
-            DetectReuse(result);
+                //DetectCanvas.Children.Clear();
+                //DrawCellMap(mapMatchingCellmap, cellmap);
+                DetectReuse(result);
 
-            
-            indexPath = result;
-            Graph graph = new Path(result.Count);
-            List<Vertex> vertexPath = BuildVertexPath(result);
-            graph.V = vertexPath.ToArray();
-            _resultGraph = graph;
 
-            Calculation(graph, _path);
-            
+                indexPath = result;
+                Graph graph = new Path(result.Count);
+                List<Vertex> vertexPath = BuildVertexPath(result);
+                graph.V = vertexPath.ToArray();
+                _resultGraph = graph;
+
+                Calculation(graph, _path);
+
+                string path = String.Format("{0}/grid_{1}/{2}/pos{3:D2}", outputfolder, _graph.GridSize(), currentFile,
+                    _current_position);
+                if (!Directory.Exists(path))
+                {
+                    System.IO.Directory.CreateDirectory(path);
+                }
+                SaveOutput(string.Format("{0}/output.txt", path));
+            }
         }
 
         public List<int> Calculation(Graph graph, Path path)
@@ -731,7 +746,7 @@ namespace Matching_Planar_Maps
                 DetectCanvas.Children.Add(DrawCircle(_graph.V[start], 5, 4, Brushes.Green));
                 DetectCanvas.Children.Add(DrawCircle(_graph.V[end], 5, 4, Brushes.Red));
 
-                continue;
+                //continue;
 
                 possiblePaths = partialProblem.getPossiblePaths(start, end);
 
@@ -741,9 +756,7 @@ namespace Matching_Planar_Maps
                 float minValue = 0;
                 float maxValue = 1;
                 float epsilon = 1;
-
                 
-
                 // Determine max and minvalue
                 while (!feasiblePaths.Any())
                 {
@@ -817,9 +830,12 @@ namespace Matching_Planar_Maps
 
 
                 // Edit graph
+                int min = possiblePaths.Min(p => p.Count);
+                List<int> shortestPath = possiblePaths.First(p => p.Count == min);
+
                 frechetDistance.Preprocessing(maxValue);
                 resultPath.RemoveRange(startIndex, (endIndex - startIndex) + 1);
-                resultPath.InsertRange(startIndex, possiblePaths.First());
+                resultPath.InsertRange(startIndex, shortestPath);
 
                 for (int p = 0; p < Math.Min(5, possiblePaths.Count); p++)
                 {
@@ -1899,7 +1915,7 @@ vp == vgrid2 && vn == vgrid4)
             size = 10;
             _graph = new GridGraph(10, 1f);
             scale = 500.0f / _graph.GridSize();
-            scale *= 1.5f;
+            scale *= 1.0f;
             Clear();
         }
 
@@ -1908,7 +1924,7 @@ vp == vgrid2 && vn == vgrid4)
             size = 30;
             _graph = new GridGraph(30, 1f);
             scale = 500.0f / _graph.GridSize();
-            scale *= 1.5f;
+            scale *= 1.0f;
             Clear();
         }
 
@@ -1917,7 +1933,7 @@ vp == vgrid2 && vn == vgrid4)
             size = 50;
             _graph = new GridGraph(50, 1f);
             scale = 500.0f / _graph.GridSize();
-            scale *= 1.5f;
+            scale *= 1.0f;
             Clear();
         }
 
@@ -1926,7 +1942,7 @@ vp == vgrid2 && vn == vgrid4)
             size = 70;
             _graph = new GridGraph(70, 1f);
             scale = 500.0f / _graph.GridSize();
-            scale *= 1.5f;
+            scale *= 1.0f;
             Clear();
         }
 
@@ -1946,12 +1962,56 @@ vp == vgrid2 && vn == vgrid4)
 
         }
 
+        private List<int> BuildIndexPath(Path path)
+        {
+            List<int> indexPath = new List<int>();
+            foreach (Vertex v in path.V)
+            {
+                indexPath.Add(_graph.GridIndex((int) Math.Floor(v.X), (int) Math.Floor(v.Y)));
+            }
+            return indexPath;
+        }
+
+        private void MenuItemOpenOutput_Click(object sender, RoutedEventArgs e)
+        {
+            OpenFileDialog openFileDialog = new OpenFileDialog();
+            openFileDialog.Filter = "Text file (*.txt)|*.txt";
+            if (openFileDialog.ShowDialog() == true)
+            {
+                string extension = System.IO.Path.GetExtension(openFileDialog.FileName);
+
+                IFileReader fileReader = null;
+                fileReader = new TXTReader();
+
+                Path path = fileReader.ReadFile(openFileDialog.FileName);
+
+                // Convert vertex path to indexpath
+                List<int> result = BuildIndexPath(path);
+
+                DrawResult(result, Brushes.Blue);
+
+                //DetectCanvas.Children.Clear();
+                //DrawCellMap(mapMatchingCellmap, cellmap);
+                DetectReuse(result);
+
+
+                indexPath = result;
+                Graph graph = new Path(result.Count);
+                List<Vertex> vertexPath = BuildVertexPath(result);
+                graph.V = vertexPath.ToArray();
+                _resultGraph = graph;
+
+                Calculation(graph, _path);
+
+            }
+        }
+
         private void grid90_Click(object sender, RoutedEventArgs e)
         {
             size = 90;
             _graph = new GridGraph(90, 1f);
             scale = 500.0f / _graph.GridSize();
-            scale *= 1.5f;
+            scale *= 1.0f;
             Clear();
         }
 
@@ -2024,10 +2084,16 @@ vp == vgrid2 && vn == vgrid4)
             if (_current_position >= 25)
                 _current_position = 0;
 
+            SetPosition(_current_position);
+        }
+
+        public void SetPosition(int position)
+        {
+            _current_position = position;
             lbl_curpos.Content = String.Format("current position: {0}", _current_position);
 
-            float deltaX = (0.25f) * (_current_position % 5);
-            float deltaY = (0.25f) * (float)(Math.Floor(_current_position / 5.0));
+            float deltaX = (0.25f) * (position % 5);
+            float deltaY = (0.25f) * (float)(Math.Floor(position / 5.0));
             foreach (Vertex v in _path.V)
             {
                 v.X += deltaX - _deltaX;
@@ -2057,7 +2123,6 @@ vp == vgrid2 && vn == vgrid4)
             RenderCanvas.Children.Clear();
 
             Draw(InputCanvas, _path, Brushes.Black);
-
         }
     }
 }
