@@ -100,6 +100,13 @@ namespace Matching_Planar_Maps
                 Console.WriteLine(" ({0} ms)", watch.ElapsedMilliseconds);
         }
 
+        public bool Calculate(List<int> indexPath, float epsilon)
+        {
+            Console.Out.WriteLine($"Calculating frechet: {epsilon}");
+            Preprocessing(epsilon);
+            return FeasiblePath(indexPath);
+        }
+
         public bool FeasiblePath(List<int> indexPath)
         {
             br = new Range[_path.Size, indexPath.Count];
@@ -163,11 +170,6 @@ namespace Matching_Planar_Maps
                             lr[i + 1, j].Start = Math.Max(lr[i, j].Start, L[indexPath[j], i + 1][e].Start);
                             lr[i + 1, j].End = L[indexPath[j], i + 1][e].End;
                         }
-                        else
-                        {
-                            lr[i + 1, j].Start = 1.0f;
-                            lr[i + 1, j].End = 0.0f;
-                        }
                     }
 
 
@@ -178,8 +180,12 @@ namespace Matching_Planar_Maps
                     }
                     else
                     {
-                        br[i, j + 1].Start = Math.Max(br[i, j].Start, B[indexPath[j + 1]][i].Start);
-                        br[i, j + 1].End = Math.Min(br[i, j].End, B[indexPath[j + 1]][i].End);
+                        if (!br[i, j].Empty())
+                        {
+                            br[i, j + 1].Start = Math.Max(br[i, j].Start, B[indexPath[j + 1]][i].Start);
+                            br[i, j + 1].End = B[indexPath[j + 1]][i].End;
+                        }
+
                     }
                 }
             }

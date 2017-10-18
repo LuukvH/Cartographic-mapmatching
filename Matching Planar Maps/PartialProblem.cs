@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics.Contracts;
 using System.Linq;
 using System.Net;
 using System.Security.Policy;
@@ -12,11 +13,20 @@ namespace Matching_Planar_Maps
     public class PartialProblem
     {
         public float lbox, rbox, tbox, bbox = 0;
-        private float spacing = 2.0f;
-        private float rspacing = 2.0f;
+        private float rspacing = 1.0f;
+        private float tspacing = 1.0f;
+        private float bspacing = 2.0f;
+        private float lspacing = 2.0f;
         public List<int> vertices = new List<int>();
         public Graph PartialGraph = null;
         private Graph _graph;
+
+        public int Start;
+        public int End;
+
+        public static int count = 0;
+        public static int pathlength = 0;
+
 
         public PartialProblem(Graph graph)
         {
@@ -28,57 +38,73 @@ namespace Matching_Planar_Maps
             Vertex vertex = _graph.V[index];
             if (!vertices.Any())
             {
-                lbox = vertex.X - spacing;
+                lbox = vertex.X - lspacing;
                 rbox = vertex.X + rspacing;
-                tbox = vertex.Y + spacing;
-                bbox = vertex.Y - spacing;
+                tbox = vertex.Y + bspacing;
+                bbox = vertex.Y - tspacing;
             }
             else
             {
-               lbox = vertex.X - spacing < lbox ? vertex.X - spacing : lbox;
-               rbox = vertex.X + rspacing > rbox ? vertex.X + rspacing : rbox;
-                tbox = vertex.Y + spacing > tbox ? vertex.Y + spacing: tbox;
-                bbox = vertex.Y - spacing < bbox ? vertex.Y - spacing : bbox;
+                lbox = vertex.X - lspacing < lbox ? vertex.X - lspacing : lbox;
+                rbox = vertex.X + rspacing > rbox ? vertex.X + rspacing : rbox;
+                tbox = vertex.Y + bspacing > tbox ? vertex.Y + bspacing : tbox;
+                bbox = vertex.Y - tspacing < bbox ? vertex.Y - tspacing : bbox;
             }
 
-            vertices.Add(index);
+           vertices.Add(index);
         }
 
-        public Path getPath(Path path) {
+        public Path getPath(Path path)
+        {
 
             List<Vertex> pv = new List<Vertex>();
-            int i = 0;
-            int start = -1;
-            int end = -1;
-            while (!isInside(path.V[i]))
-            {
-                i++;
-            }
-            start = i;
-            while (isInside(path.V[i]))
-            {
-                i++;
-            }
-            end = i;
 
-           Vertex intersectionstart = findBoxIntersection(path, start - 1, start);
-            if (intersectionstart != null)
-                pv.Add(intersectionstart);
-
-            for (int n = start; n < end; n++)
+            try
             {
-                pv.Add(path.V[n]);
-            }
+                int i = 0;
+                int start = -1;
+                int end = -1;
+                while (!isInside(path.V[i]))
+                {
+                    i++;
+                }
+                start = i;
+                while (isInside(path.V[i]))
+                {
+                    i++;
+                }
+                end = i;
 
-            Vertex intersectionend = findBoxIntersection(path, end-1, end);
-            if (intersectionend != null)
-                pv.Add(intersectionend);
+                Vertex intersectionstart = findBoxIntersection(path, start - 1, start);
+                if (intersectionstart != null)
+                    pv.Add(intersectionstart);
+
+                for (int n = start; n < end; n++)
+                {
+                    pv.Add(path.V[n]);
+                }
+
+                Vertex intersectionend = findBoxIntersection(path, end - 1, end);
+                if (intersectionend != null)
+                {
+                    // Do not add vertex when on top of already last vertex
+                    if (!intersectionend.Equals(pv.Last()))
+                        pv.Add(intersectionend);
+                }
+
+
+                // Remove duplicate vertices
+            }
+            catch
+            {
+                // ignored
+            }
 
             //Console.Out.WriteLine($"Not Inside {i} ({path.V[i].X},{path.V[i].Y})");
             Path partialPath = new Path(pv.Count);
             partialPath.V = pv.ToArray();
 
-            
+
 
             return partialPath;
         }
@@ -118,7 +144,7 @@ namespace Matching_Planar_Maps
             {
                 return intersection;
             }
-                return null; 
+            return null;
         }
 
         public bool isInside(Vertex v)
@@ -150,16 +176,22 @@ namespace Matching_Planar_Maps
             return partialGraph;
         }
 
+        public List<List<int>> getPossiblePaths()
+        {
+            return getPossiblePaths(Start, End);
+        }
+
 
         public List<List<int>> getPossiblePaths(int start, int end)
         {
+            count = 0;
             List<List<int>> possiblePaths = new List<List<int>>();
 
-                    
-                    List<int> path = new List<int>();
-                    path.Add(start);
-                    possiblePaths = allPaths(path, end);
-                    Console.Out.WriteLine($"Possible paths: {possiblePaths.Count}");
+
+            List<int> path = new List<int>();
+            path.Add(start);
+            possiblePaths = allPaths(path, end);
+            Console.Out.WriteLine($"Possible paths: {possiblePaths.Count}");
 
 
             return possiblePaths;
@@ -171,9 +203,30 @@ namespace Matching_Planar_Maps
 
             List<List<int>> newPaths = new List<List<int>>();
 
+            // Stop when to long
+            if (path.Count >= 30)
+                return newPaths;
+
             // If is on edge than add the path
             if (index == end)
+            {
+                count++;
+
+                // Print path length
+                if (path.Count > pathlength)
+                {
+                    pathlength = path.Count;
+                    Console.Out.WriteLine($"Path length {path.Count}");
+                }
+
+                if (count % 1000 == 0)
+                {
+                    Console.Out.WriteLine($"Possible paths: {count}");
+                }
+
                 newPaths.Add(path);
+                return newPaths;
+            }
 
             for (int i = 0; i < PartialGraph.E[index].Count; i++)
             {
@@ -186,7 +239,9 @@ namespace Matching_Planar_Maps
                     newPaths.AddRange(allPaths(newpath, end));
                 }
             }
-            
+
+
+
             return newPaths;
         }
 

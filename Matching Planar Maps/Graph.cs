@@ -29,5 +29,14 @@ namespace Matching_Planar_Maps
         public Vertex[] V { get { return _vertices; } set { _vertices = value; } }
 
         public List<int>[] E => _edges;
+
+        public void RemoveEdges(int v)
+        {
+            E[v].Clear();
+            for (int i = 0; i < _size; i++)
+            {
+                E[i].Remove(v);
+            }
+        }
     }
 }

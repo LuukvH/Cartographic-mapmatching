@@ -83,6 +83,7 @@
       <SubType>Designer</SubType>
     </ApplicationDefinition>
     <Compile Include="Edge.cs" />
+    <Compile Include="FrechetDistanceSimple.cs" />
     <Compile Include="FrechetDistannce.cs" />
     <Compile Include="FreeSpaceDiagram.xaml.cs">
       <DependentUpon>FreeSpaceDiagram.xaml</DependentUpon>
